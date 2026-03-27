@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
+use chrono::Local;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
@@ -14,6 +15,17 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Initialize a new typlog workspace
+    Init {
+        /// Target directory, defaults to current directory
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+    },
+    /// Create a new post under post/<slug>.typ
+    New {
+        /// Post slug, use kebab-case
+        slug: String,
+    },
     /// Compile all post/*.typ into public/posts/*.html
     Generate {
         /// Remove existing output directory before compiling
@@ -30,9 +42,69 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Commands::Init { dir } => init_workspace(&dir),
+        Commands::New { slug } => new_post(&slug),
         Commands::Generate { clean, verbose } => generate(clean, verbose),
         Commands::Clean => clean_output_dir(),
     }
+}
+
+fn init_workspace(dir: &Path) -> Result<()> {
+    fs::create_dir_all(dir).with_context(|| format!("无法创建目录: {}", dir.display()))?;
+    for child in ["post", "templates", "public/posts", "public/assets"] {
+        let target = dir.join(child);
+        fs::create_dir_all(&target)
+            .with_context(|| format!("无法创建目录: {}", target.display()))?;
+    }
+
+    let config_path = dir.join("config.toml");
+    if !config_path.exists() {
+        let config = r#"title = "Typlog"
+base_url = "/"
+language = "zh-CN"
+"#;
+        fs::write(&config_path, config)
+            .with_context(|| format!("无法写入文件: {}", config_path.display()))?;
+    }
+
+    let template_path = dir.join("templates/post.typ");
+    if !template_path.exists() {
+        let template = r#"#let title = "文章标题"
+#let date = "2026-03-28"
+
+= #title
+
+日期：#date
+
+在这里开始写正文。
+"#;
+        fs::write(&template_path, template)
+            .with_context(|| format!("无法写入文件: {}", template_path.display()))?;
+    }
+
+    println!("初始化完成: {}", dir.display());
+    Ok(())
+}
+
+fn new_post(slug: &str) -> Result<()> {
+    validate_slug(slug)?;
+    let post_dir = Path::new("post");
+    fs::create_dir_all(post_dir)
+        .with_context(|| format!("无法创建目录: {}", post_dir.display()))?;
+
+    let post_path = post_dir.join(format!("{slug}.typ"));
+    if post_path.exists() {
+        bail!("文章已存在: {}", post_path.display());
+    }
+
+    let today = Local::now().format("%Y-%m-%d").to_string();
+    let content = format!(
+        "#let title = \"{slug}\"\n#let date = \"{today}\"\n\n= #title\n\n日期：#date\n\n在这里开始写正文。\n"
+    );
+    fs::write(&post_path, content)
+        .with_context(|| format!("无法写入文件: {}", post_path.display()))?;
+    println!("已创建: {}", post_path.display());
+    Ok(())
 }
 
 fn generate(clean: bool, verbose: bool) -> Result<()> {
@@ -107,6 +179,34 @@ fn collect_typ_files(dir: &Path) -> Result<Vec<PathBuf>> {
     walk_collect(dir, &mut out)?;
     out.sort();
     Ok(out)
+}
+
+fn validate_slug(slug: &str) -> Result<()> {
+    if slug.is_empty() {
+        bail!("slug 不能为空");
+    }
+    let is_valid = slug
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if !is_valid {
+        bail!("slug 仅允许小写字母、数字、短横线");
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_slug;
+
+    #[test]
+    fn slug_should_pass_when_kebab_case() {
+        assert!(validate_slug("hello-2026").is_ok());
+    }
+
+    #[test]
+    fn slug_should_fail_when_has_uppercase() {
+        assert!(validate_slug("Hello").is_err());
+    }
 }
 
 fn walk_collect(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
