@@ -6,6 +6,7 @@ pub mod html;
 pub mod init;
 pub mod meta;
 pub mod post;
+pub mod scaffold;
 
 pub use build::{clean_output_dir, generate};
 pub use init::init_workspace;

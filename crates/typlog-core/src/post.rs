@@ -4,6 +4,11 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 use chrono::Local;
 
+use crate::scaffold::{
+    DEFAULT_META_TOML_TEMPLATE, DEFAULT_POST_TYP_TEMPLATE, load_template_or_default,
+    render_template,
+};
+
 pub fn validate_slug(slug: &str) -> Result<()> {
     if slug.is_empty() {
         bail!("slug 不能为空");
@@ -30,30 +35,21 @@ pub fn new_post(slug: &str) -> Result<()> {
     fs::create_dir_all(&dir).with_context(|| format!("无法创建目录: {}", dir.display()))?;
 
     let today = Local::now().format("%Y-%m-%d").to_string();
+    let title = slug;
+
+    let meta_tpl =
+        load_template_or_default(Path::new("templates/meta.toml"), DEFAULT_META_TOML_TEMPLATE)?;
+    let post_tpl =
+        load_template_or_default(Path::new("templates/post.typ"), DEFAULT_POST_TYP_TEMPLATE)?;
+    let meta_content = render_template(meta_tpl.trim(), slug, &today, title);
+    let post_content = render_template(post_tpl.trim(), slug, &today, title);
+
     let meta_path = dir.join("meta.toml");
-    let meta_content = format!(
-        r#"title = "{slug}"
-date = "{today}"
-draft = false
-"#,
-        slug = slug,
-        today = today,
-    );
     fs::write(&meta_path, meta_content)
         .with_context(|| format!("无法写入文件: {}", meta_path.display()))?;
 
     let post_path = dir.join("index.typ");
-    let content = format!(
-        r#"#import "/templates/article.typ": article
-
-#article("{slug}", "{today}")[
-在这里开始写正文。
-]
-"#,
-        slug = slug,
-        today = today,
-    );
-    fs::write(&post_path, content)
+    fs::write(&post_path, post_content)
         .with_context(|| format!("无法写入文件: {}", post_path.display()))?;
     println!("已创建: {} 与 {}", meta_path.display(), post_path.display());
     Ok(())
