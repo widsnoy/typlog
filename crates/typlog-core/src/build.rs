@@ -6,7 +6,7 @@ use anyhow::{Context, Result, bail};
 
 use crate::config::read_site_title;
 use crate::html::write_index_html;
-use crate::meta::{PostMeta, post_meta_from_file, sort_posts_desc};
+use crate::meta::{PostMeta, post_meta_from_post_dir, sort_posts_desc};
 
 pub fn generate(clean: bool, verbose: bool) -> Result<()> {
     let input_dir = Path::new("post");
@@ -22,17 +22,26 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
     fs::create_dir_all(output_dir)
         .with_context(|| format!("无法创建目录: {}", output_dir.display()))?;
 
-    let posts = collect_post_index_files(input_dir)?;
-    if posts.is_empty() {
-        bail!("未找到任何 post/<slug>/index.typ，请按该结构添加文章");
+    let post_dirs = collect_post_dirs(input_dir)?;
+    if post_dirs.is_empty() {
+        bail!("未找到有效文章目录（需要 post/<slug>/index.typ 与 meta.toml）");
     }
 
-    for input in &posts {
-        let slug = input
-            .parent()
-            .and_then(|p| p.file_name())
-            .and_then(|s| s.to_str())
-            .context("无法从路径解析 slug")?;
+    let mut entries: Vec<(PathBuf, PostMeta)> = Vec::new();
+    for dir in &post_dirs {
+        let meta = post_meta_from_post_dir(dir)?;
+        entries.push((dir.clone(), meta));
+    }
+
+    for (dir, meta) in &entries {
+        if meta.draft {
+            if verbose {
+                println!("跳过草稿: {}", dir.display());
+            }
+            continue;
+        }
+        let input = dir.join("index.typ");
+        let slug = meta.slug.as_str();
         let out_dir = output_dir.join(slug);
         let output = out_dir.join("index.html");
 
@@ -40,21 +49,20 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
             println!("编译: {} -> {}", input.display(), output.display());
         }
 
-        run_typst_compile(input, &output)?;
-
-        let src_dir = input.parent().context("文章目录")?;
-        copy_post_assets(src_dir, &out_dir)?;
+        run_typst_compile(&input, &output)?;
+        copy_post_assets(dir, &out_dir)?;
     }
 
-    let mut metas: Vec<PostMeta> = posts
+    let mut index_metas: Vec<PostMeta> = entries
         .iter()
-        .map(|p| post_meta_from_file(p))
-        .collect::<Result<_>>()?;
-    sort_posts_desc(&mut metas);
+        .filter(|(_, m)| !m.draft)
+        .map(|(_, m)| m.clone())
+        .collect();
+    sort_posts_desc(&mut index_metas);
 
     let site_title = read_site_title();
     let index_path = Path::new("public/index.html");
-    write_index_html(index_path, &site_title, &metas)?;
+    write_index_html(index_path, &site_title, &index_metas)?;
 
     println!(
         "完成: 已生成 {} 与 {}",
@@ -102,7 +110,7 @@ fn run_typst_compile(input: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 将 post/<slug>/ 下除 index.typ 外的文件与子目录复制到输出目录（图片等资源）。
+/// 将 post/<slug>/ 下除 index.typ、meta.toml 外的文件与子目录复制到输出目录。
 fn copy_post_assets(from: &Path, to: &Path) -> Result<()> {
     if !from.is_dir() {
         return Ok(());
@@ -113,7 +121,7 @@ fn copy_post_assets(from: &Path, to: &Path) -> Result<()> {
         let entry = entry?;
         let path = entry.path();
         let name = entry.file_name();
-        if name == "index.typ" {
+        if name == "index.typ" || name == "meta.toml" {
             continue;
         }
         let dest = to.join(&name);
@@ -146,7 +154,8 @@ fn copy_dir_all(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-fn collect_post_index_files(post_root: &Path) -> Result<Vec<PathBuf>> {
+/// 列出 `post/<slug>/` 目录：必须同时存在 `index.typ` 与 `meta.toml`。
+fn collect_post_dirs(post_root: &Path) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     if !post_root.is_dir() {
         return Ok(out);
@@ -160,9 +169,17 @@ fn collect_post_index_files(post_root: &Path) -> Result<Vec<PathBuf>> {
             continue;
         }
         let index = path.join("index.typ");
-        if index.is_file() {
-            out.push(index);
+        let meta = path.join("meta.toml");
+        if !index.is_file() {
+            continue;
         }
+        if !meta.is_file() {
+            bail!(
+                "缺少 meta.toml: {}（每篇文章目录需要 meta.toml 供博客元数据使用）",
+                path.display()
+            );
+        }
+        out.push(path);
     }
     out.sort();
     Ok(out)

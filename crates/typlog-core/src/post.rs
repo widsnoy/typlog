@@ -29,8 +29,20 @@ pub fn new_post(slug: &str) -> Result<()> {
     }
     fs::create_dir_all(&dir).with_context(|| format!("无法创建目录: {}", dir.display()))?;
 
-    let post_path = dir.join("index.typ");
     let today = Local::now().format("%Y-%m-%d").to_string();
+    let meta_path = dir.join("meta.toml");
+    let meta_content = format!(
+        r#"title = "{slug}"
+date = "{today}"
+draft = false
+"#,
+        slug = slug,
+        today = today,
+    );
+    fs::write(&meta_path, meta_content)
+        .with_context(|| format!("无法写入文件: {}", meta_path.display()))?;
+
+    let post_path = dir.join("index.typ");
     let content = format!(
         r#"#import "/templates/article.typ": article
 
@@ -43,7 +55,7 @@ pub fn new_post(slug: &str) -> Result<()> {
     );
     fs::write(&post_path, content)
         .with_context(|| format!("无法写入文件: {}", post_path.display()))?;
-    println!("已创建: {}", post_path.display());
+    println!("已创建: {} 与 {}", meta_path.display(), post_path.display());
     Ok(())
 }
 
