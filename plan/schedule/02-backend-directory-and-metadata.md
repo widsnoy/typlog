@@ -1,5 +1,7 @@
 # 02 后端：目录与元数据契约
 
+**实现状态**：与 `typlog-core`（`meta`、`post`、`scaffold`、`build`）一致；**已实现**。
+
 ## 目录约定
 
 - `post/<文章 id>/`：每篇一个目录；**必填** `meta.toml`（标题、日期、草稿等）与 `index.typ`（正文）。`文章 id` 为小写 kebab-case 目录名，用作 `public/posts/<文章 id>/` 的 URL 路径段。

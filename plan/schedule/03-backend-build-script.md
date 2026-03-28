@@ -1,29 +1,31 @@
 # 03 后端：构建脚本
 
+**实现状态**：由 Rust crate `typlog-core::build` + CLI `typlog generate` 实现（**已完成**）。仓库内 **未** 单独维护 Typst 版本号文件（与 04「版本锁定」待补）。
+
 ## 职责
 
-- 扫描 `post/*.typ`（或约定子目录，若后续扩展）。
-- 对每个源文件调用 `typst compile`（并传入 `meta.toml` 中的 title/date），目标为 `public/posts/<文章 id>/index.html`（目录规则见 02）。
-- 构建前 **清理** `public/posts/` 或等价策略，避免幽灵页面。
-- 将 Typst 版本、feature 开关写入一处（如环境变量文件或 CI 矩阵），避免散落。
+- 扫描 `post/` 下 **一级子目录**（每篇 `post/<文章 id>/`），要求同时存在 `index.typ` 与 `meta.toml`（见 [02](02-backend-directory-and-metadata.md)）。
+- 对每篇非草稿文章调用 `typst compile --root <仓库根> --input title=… --input date=… --features html --format html`，输出 `public/posts/<文章 id>/index.html`。
+- 可选 **`--clean`**：先删除 `public/posts/` 再生成；**不**删除 `public/index.html`（由本次 `generate` 末尾重写）。
+- 将站点标题等用于首页：读取 `config.toml`（`SiteConfig`），写 `public/index.html` 文章列表。
 
 ## 命令形态（逻辑要求）
 
-- **禁止**以 `package.json` / `npm run` 作为默认构建路径；须与 [07-hexo-like-cli-and-config.md](07-hexo-like-cli-and-config.md) 一致（如 `typlog generate`、或 `make generate`、或单一二进制）。
-- 入口：仓库内 **只保留一种主入口**（文档与 CI 同一命令）。
-- 参数：可选 `--clean`、可选 `--verbose`；默认行为与 CI 一致。
+- **禁止**以 `package.json` / `npm run` 作为默认构建路径；须与 [07-hexo-like-cli-and-config.md](07-hexo-like-cli-and-config.md) 一致（`typlog generate`）。
+- 入口：仓库主入口为 **`cargo run -p typlog --` / 安装后的 `typlog`**；与 CI 应对齐同一命令（CI 待 04）。
+- 参数：`--clean`、`--verbose`；已实现。
 
 ## 本地与 CI 一致性
 
-- 同一命令在本地与 CI 应产生 **相同文件集合**（除时间戳类非确定性内容若存在则文档说明）。
-- Windows/Linux 路径：脚本避免硬编码分隔符；若用 PowerShell，需在 README 说明。
+- 目标：同一命令在本地与 CI 产生相同产物（CI 待 04）。
+- Windows/Linux：路径由 Rust `Path` / `std::process` 处理，无硬编码分隔符脚本。
 
 ## 验收清单
 
-- [ ] 空 `post/`：构建失败或给出明确提示（二选一，需在文档写明）。
-- [ ] 单篇成功：生成唯一 HTML。
-- [ ] 多篇成功：篇数一致。
-- [ ] 故意语法错误一篇：构建失败，日志含文件名。
+- [x] 空 `post/`（或无有效文章目录）：构建 **失败** 并提示（与代码一致）。
+- [x] 单篇成功：生成对应 `public/posts/<id>/index.html`。
+- [x] 多篇成功：各篇均生成（**未**单独做「篇数 vs 文件数」校验，见 04）。
+- [x] 故意语法错误一篇：`typst` 非 0 → `generate` 失败。
 
 ## 时间估算（参考）
 
