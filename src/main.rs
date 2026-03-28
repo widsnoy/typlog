@@ -25,12 +25,12 @@ enum Commands {
         #[arg(default_value = ".")]
         dir: PathBuf,
     },
-    /// Create a new post under post/<slug>.typ
+    /// Create a new post at post/<slug>/index.typ
     New {
         /// Post slug, use kebab-case
         slug: String,
     },
-    /// Compile all post/*.typ into public/posts/*.html
+    /// Compile post/<slug>/index.typ into public/posts/<slug>/index.html
     Generate {
         /// Remove existing output directory before compiling
         #[arg(long)]
@@ -78,19 +78,23 @@ language = "zh-CN"
             .with_context(|| format!("无法写入文件: {}", config_path.display()))?;
     }
 
-    let template_path = dir.join("templates/post.typ");
-    if !template_path.exists() {
-        let template = r#"#let title = "文章标题"
-#let date = "2026-03-28"
+    let article_tpl = dir.join("templates/article.typ");
+    if !article_tpl.exists() {
+        let template = r#"// 文章入口模板：在 post/<slug>/index.typ 里 import 后调用 article。
+// 图片等资源放在与 index.typ 同一目录，正文中使用 #image("foo.png")。
+//
+// 用法：#article("标题", "2026-03-27")[ 正文… ]
 
-= #title
-
-日期：#date
-
-在这里开始写正文。
+#let article(title, date, body) = {
+  set document(title: title)
+  [= #title]
+  text(size: 0.9em, fill: gray)[日期：#date]
+  parbreak()
+  body
+}
 "#;
-        fs::write(&template_path, template)
-            .with_context(|| format!("无法写入文件: {}", template_path.display()))?;
+        fs::write(&article_tpl, template)
+            .with_context(|| format!("无法写入文件: {}", article_tpl.display()))?;
     }
 
     println!("初始化完成: {}", dir.display());
@@ -99,18 +103,27 @@ language = "zh-CN"
 
 fn new_post(slug: &str) -> Result<()> {
     validate_slug(slug)?;
-    let post_dir = Path::new("post");
-    fs::create_dir_all(post_dir)
-        .with_context(|| format!("无法创建目录: {}", post_dir.display()))?;
+    let post_root = Path::new("post");
+    fs::create_dir_all(post_root)
+        .with_context(|| format!("无法创建目录: {}", post_root.display()))?;
 
-    let post_path = post_dir.join(format!("{slug}.typ"));
-    if post_path.exists() {
-        bail!("文章已存在: {}", post_path.display());
+    let dir = post_root.join(slug);
+    if dir.exists() {
+        bail!("文章目录已存在: {}", dir.display());
     }
+    fs::create_dir_all(&dir).with_context(|| format!("无法创建目录: {}", dir.display()))?;
 
+    let post_path = dir.join("index.typ");
     let today = Local::now().format("%Y-%m-%d").to_string();
     let content = format!(
-        "#let title = \"{slug}\"\n#let date = \"{today}\"\n\n= #title\n\n日期：#date\n\n在这里开始写正文。\n"
+        r#"#import "/templates/article.typ": article
+
+#article("{slug}", "{today}")[
+在这里开始写正文。
+]
+"#,
+        slug = slug,
+        today = today,
     );
     fs::write(&post_path, content)
         .with_context(|| format!("无法写入文件: {}", post_path.display()))?;
@@ -132,23 +145,28 @@ fn generate(clean: bool, verbose: bool) -> Result<()> {
     fs::create_dir_all(output_dir)
         .with_context(|| format!("无法创建目录: {}", output_dir.display()))?;
 
-    let posts = collect_typ_files(input_dir)?;
+    let posts = collect_post_index_files(input_dir)?;
     if posts.is_empty() {
-        bail!("未找到任何 .typ 文件，请先在 post/ 目录添加文章");
+        bail!("未找到任何 post/<slug>/index.typ，请按该结构添加文章");
     }
 
     for input in &posts {
         let slug = input
-            .file_stem()
+            .parent()
+            .and_then(|p| p.file_name())
             .and_then(|s| s.to_str())
-            .context("无法解析文件名为 slug")?;
-        let output = output_dir.join(format!("{slug}.html"));
+            .context("无法从路径解析 slug")?;
+        let out_dir = output_dir.join(slug);
+        let output = out_dir.join("index.html");
 
         if verbose {
             println!("编译: {} -> {}", input.display(), output.display());
         }
 
         run_typst_compile(input, &output)?;
+
+        let src_dir = input.parent().context("文章目录")?;
+        copy_post_assets(src_dir, &out_dir)?;
     }
 
     let mut metas: Vec<PostMeta> = posts
@@ -177,16 +195,43 @@ struct PostMeta {
 
 fn post_meta_from_file(path: &Path) -> Result<PostMeta> {
     let slug = path
-        .file_stem()
+        .parent()
+        .and_then(|p| p.file_name())
         .and_then(|s| s.to_str())
-        .context("无法解析文件名为 slug")?
+        .context("无法从路径解析 slug")?
         .to_string();
     let content =
         fs::read_to_string(path).with_context(|| format!("无法读取 {}", path.display()))?;
-    let title = parse_let_value(&content, "title").unwrap_or_else(|| slug.clone());
-    let date = parse_let_value(&content, "date")
-        .and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok());
+    let (title, date) = if let Some((t, d)) = parse_article_call(&content) {
+        let date = NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok();
+        (t, date)
+    } else {
+        let title = parse_let_value(&content, "title").unwrap_or_else(|| slug.clone());
+        let date = parse_let_value(&content, "date")
+            .and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok());
+        (title, date)
+    };
     Ok(PostMeta { slug, title, date })
+}
+
+/// 解析 `#article("标题", "日期")` 形式（均为位置参数与引号字符串）。
+fn parse_article_call(content: &str) -> Option<(String, String)> {
+    let idx = content.find("#article(")?;
+    let mut rest = &content[idx + "#article(".len()..];
+    let title = parse_leading_quoted(&mut rest)?;
+    rest = rest.trim_start();
+    rest = rest.strip_prefix(',')?.trim_start();
+    let date = parse_leading_quoted(&mut rest)?;
+    Some((title, date))
+}
+
+fn parse_leading_quoted(rest: &mut &str) -> Option<String> {
+    let s = rest.trim_start();
+    let s = s.strip_prefix('"')?;
+    let end = s.find('"')?;
+    let val = s[..end].to_string();
+    *rest = &s[end + 1..];
+    Some(val)
 }
 
 fn parse_let_value(content: &str, key: &str) -> Option<String> {
@@ -266,7 +311,7 @@ fn write_index_html(out: &Path, site_title: &str, posts: &[PostMeta]) -> Result<
     for p in posts {
         html.push_str("<li><a href=\"posts/");
         html.push_str(&p.slug);
-        html.push_str(".html\">");
+        html.push_str("/index.html\">");
         html.push_str(&html_escape(&p.title));
         html.push_str("</a>");
         if let Some(d) = p.date {
@@ -280,8 +325,16 @@ fn write_index_html(out: &Path, site_title: &str, posts: &[PostMeta]) -> Result<
 }
 
 fn run_typst_compile(input: &Path, output: &Path) -> Result<()> {
+    let root = std::env::current_dir().context("无法获取当前工作目录")?;
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("无法创建目录: {}", parent.display()))?;
+    }
     let status = Command::new("typst")
+        .current_dir(&root)
         .arg("compile")
+        .arg("--root")
+        .arg(&root)
         .arg("--features")
         .arg("html")
         .arg("--format")
@@ -293,6 +346,50 @@ fn run_typst_compile(input: &Path, output: &Path) -> Result<()> {
 
     if !status.success() {
         bail!("typst 编译失败: {}", input.display());
+    }
+    Ok(())
+}
+
+/// 将 post/<slug>/ 下除 index.typ 外的文件与子目录复制到输出目录（图片等资源）。
+fn copy_post_assets(from: &Path, to: &Path) -> Result<()> {
+    if !from.is_dir() {
+        return Ok(());
+    }
+    fs::create_dir_all(to).with_context(|| format!("无法创建目录: {}", to.display()))?;
+    for entry in fs::read_dir(from).with_context(|| format!("无法读取目录: {}", from.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        let name = entry.file_name();
+        if name == "index.typ" {
+            continue;
+        }
+        let dest = to.join(&name);
+        if path.is_dir() {
+            copy_dir_all(&path, &dest)?;
+        } else if path.is_file() {
+            fs::copy(&path, &dest).with_context(|| {
+                format!("复制资源失败: {} -> {}", path.display(), dest.display())
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn copy_dir_all(from: &Path, to: &Path) -> Result<()> {
+    fs::create_dir_all(to).with_context(|| format!("无法创建目录: {}", to.display()))?;
+    for entry in fs::read_dir(from).with_context(|| format!("无法读取目录: {}", from.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        let dest = to.join(entry.file_name());
+        if path.is_dir() {
+            copy_dir_all(&path, &dest)?;
+        } else if path.is_file() {
+            fs::copy(&path, &dest).with_context(|| {
+                format!("复制资源失败: {} -> {}", path.display(), dest.display())
+            })?;
+        }
     }
     Ok(())
 }
@@ -309,9 +406,24 @@ fn clean_output_dir() -> Result<()> {
     Ok(())
 }
 
-fn collect_typ_files(dir: &Path) -> Result<Vec<PathBuf>> {
+fn collect_post_index_files(post_root: &Path) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
-    walk_collect(dir, &mut out)?;
+    if !post_root.is_dir() {
+        return Ok(out);
+    }
+    for entry in
+        fs::read_dir(post_root).with_context(|| format!("无法读取目录: {}", post_root.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let index = path.join("index.typ");
+        if index.is_file() {
+            out.push(index);
+        }
+    }
     out.sort();
     Ok(out)
 }
@@ -375,6 +487,7 @@ fn guess_content_type(path: &Path) -> &'static str {
         Some("svg") => "image/svg+xml",
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
         _ => "application/octet-stream",
     }
 }
@@ -396,7 +509,9 @@ fn validate_slug(slug: &str) -> Result<()> {
 mod tests {
     use std::path::Path;
 
-    use super::{guess_content_type, html_escape, parse_let_value, validate_slug};
+    use super::{
+        guess_content_type, html_escape, parse_article_call, parse_let_value, validate_slug,
+    };
 
     #[test]
     fn slug_should_pass_when_kebab_case() {
@@ -430,20 +545,17 @@ mod tests {
         assert_eq!(html_escape("&<>"), "&amp;&lt;&gt;");
         assert_eq!(html_escape("\""), "&quot;");
     }
-}
 
-fn walk_collect(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
-    for entry in fs::read_dir(dir).with_context(|| format!("无法读取目录: {}", dir.display()))?
-    {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            walk_collect(&path, out)?;
-            continue;
-        }
-        if path.extension().and_then(|s| s.to_str()) == Some("typ") {
-            out.push(path);
-        }
+    #[test]
+    fn parse_article_call_should_read_title_and_date() {
+        let s = r#"#import "/templates/article.typ": article
+
+#article("Hello", "2026-01-02")[
+正文
+]
+"#;
+        let (t, d) = parse_article_call(s).expect("article");
+        assert_eq!(t, "Hello");
+        assert_eq!(d, "2026-01-02");
     }
-    Ok(())
 }
