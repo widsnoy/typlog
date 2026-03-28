@@ -15,6 +15,15 @@ pub struct SiteConfig {
     /// 主题 id，对应 `themes/<id>/assets/`（由 `typlog generate` 复制到 `public/assets/themes/<id>/`）
     #[serde(default = "default_theme")]
     pub theme: String,
+    /// 全站背景图：相对站点根的路径（如 `assets/bg.jpg`）或 `https://...`；不设置则无背景图
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_image: Option<String>,
+    /// 背景图透明度，0～1（作用于背景图层）
+    #[serde(default = "default_background_opacity")]
+    pub background_opacity: f64,
+    /// 背景模糊（像素），0 表示不模糊
+    #[serde(default)]
+    pub background_blur_px: u32,
 }
 
 fn default_title() -> String {
@@ -33,6 +42,10 @@ fn default_theme() -> String {
     "material".to_string()
 }
 
+fn default_background_opacity() -> f64 {
+    1.0
+}
+
 impl Default for SiteConfig {
     fn default() -> Self {
         Self {
@@ -40,6 +53,9 @@ impl Default for SiteConfig {
             base_url: default_base_url(),
             language: default_language(),
             theme: default_theme(),
+            background_image: None,
+            background_opacity: default_background_opacity(),
+            background_blur_px: 0,
         }
     }
 }
@@ -108,6 +124,9 @@ language = "en"
         assert_eq!(c.base_url, "/");
         assert_eq!(c.language, "zh-CN");
         assert_eq!(c.theme, "material");
+        assert!(c.background_image.is_none());
+        assert_eq!(c.background_opacity, 1.0);
+        assert_eq!(c.background_blur_px, 0);
         let _ = std::fs::remove_file(&p);
     }
 

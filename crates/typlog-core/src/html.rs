@@ -28,6 +28,58 @@ fn theme_css_path_post(theme: &str) -> String {
     format!("../../assets/themes/{theme}/site.css")
 }
 
+/// `path_prefix`：相对当前 HTML 文件到站点根，首页为 `""`，文章为 `"../../"`。
+fn resolve_background_image_url(raw: &str, path_prefix: &str) -> String {
+    let s = raw.trim();
+    if s.starts_with("http://") || s.starts_with("https://") {
+        return s.to_string();
+    }
+    let path = s.trim_start_matches('/');
+    format!("{path_prefix}{path}")
+}
+
+fn css_url_value(url: &str) -> String {
+    let escaped = url.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("url(\"{escaped}\")")
+}
+
+/// 根据 `config.toml` 注入全站背景图 / 透明度 / 模糊（`body::before` 固定层）。
+pub(crate) fn background_style_for_site(site: &SiteConfig, path_prefix: &str) -> String {
+    let Some(img) = site.background_image.as_ref() else {
+        return String::new();
+    };
+    if img.trim().is_empty() {
+        return String::new();
+    }
+    let url = resolve_background_image_url(img, path_prefix);
+    let opacity = site.background_opacity.clamp(0.0, 1.0);
+    let blur = site.background_blur_px;
+    let url_css = css_url_value(&url);
+    format!(
+        r#"<style id="typlog-site-bg">
+body.typlog-material {{ background-color: transparent !important; }}
+body.typlog-material::before {{
+  content: "";
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: {url_css};
+  background-size: cover;
+  background-position: center;
+  opacity: {opacity};
+  filter: blur({blur}px);
+  transform: scale(1.06);
+}}
+</style>
+"#,
+        url_css = url_css,
+        opacity = opacity,
+        blur = blur,
+    )
+}
+
 /// 生成首页 HTML（Material 风格壳 + 主题 CSS）。
 pub fn write_index_html(out: &Path, site: &SiteConfig, posts: &[PostMeta]) -> Result<()> {
     if let Some(parent) = out.parent() {
@@ -52,6 +104,7 @@ pub fn write_index_html(out: &Path, site: &SiteConfig, posts: &[PostMeta]) -> Re
     html.push_str("<link rel=\"stylesheet\" href=\"");
     html.push_str(&html_escape(&css_href));
     html.push_str("\">\n");
+    html.push_str(&background_style_for_site(site, ""));
     html.push_str("</head>\n<body class=\"typlog-material\">\n");
     html.push_str("<header class=\"material-appbar\"><div class=\"material-appbar-inner\">");
     html.push_str("<a class=\"material-appbar-brand\" href=\"index.html\">");
@@ -110,10 +163,18 @@ pub fn inject_theme_post_html(html: &str, site: &SiteConfig, meta: &PostMeta) ->
     <link rel="stylesheet" href="{css_href}">
 "#
     );
-    if !s.contains(&css_href)
+    let bg = background_style_for_site(site, "../../");
+    let mut inject = String::new();
+    if !s.contains(&css_href) {
+        inject.push_str(&head_snippet);
+    }
+    if !bg.is_empty() && !s.contains("typlog-site-bg") {
+        inject.push_str(&bg);
+    }
+    if !inject.is_empty()
         && let Some(pos) = s.to_ascii_lowercase().find("</head>")
     {
-        s.insert_str(pos, &head_snippet);
+        s.insert_str(pos, &inject);
     }
 
     let lower = s.to_ascii_lowercase();
@@ -189,5 +250,20 @@ mod tests {
         assert!(out.contains("material-typst"));
         assert!(out.contains("<p>Hi</p>"));
         assert!(out.contains("assets/themes/material/site.css"));
+    }
+
+    #[test]
+    fn background_style_resolves_post_relative_path() {
+        let site = SiteConfig {
+            background_image: Some("assets/bg.jpg".into()),
+            background_opacity: 0.7,
+            background_blur_px: 8,
+            ..Default::default()
+        };
+        let s = super::background_style_for_site(&site, "../../");
+        assert!(s.contains("typlog-site-bg"));
+        assert!(s.contains("../../assets/bg.jpg"));
+        assert!(s.contains("opacity: 0.7"));
+        assert!(s.contains("blur(8px)"));
     }
 }
