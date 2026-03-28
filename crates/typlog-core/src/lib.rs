@@ -11,4 +11,4 @@ pub mod scaffold;
 pub use build::{clean_output_dir, generate};
 pub use init::init_workspace;
 pub use meta::{PostMeta, post_meta_from_post_dir, sort_posts_desc};
-pub use post::{new_post, validate_slug};
+pub use post::{new_post, validate_post_id};

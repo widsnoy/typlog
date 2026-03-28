@@ -24,7 +24,7 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
 
     let post_dirs = collect_post_dirs(input_dir)?;
     if post_dirs.is_empty() {
-        bail!("未找到有效文章目录（需要 post/<slug>/index.typ 与 meta.toml）");
+        bail!("未找到有效文章目录（需要 post/<id>/index.typ 与 meta.toml）");
     }
 
     let mut entries: Vec<(PathBuf, PostMeta)> = Vec::new();
@@ -41,15 +41,19 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
             continue;
         }
         let input = dir.join("index.typ");
-        let slug = meta.slug.as_str();
-        let out_dir = output_dir.join(slug);
+        let id = meta.id.as_str();
+        let out_dir = output_dir.join(id);
         let output = out_dir.join("index.html");
 
         if verbose {
             println!("编译: {} -> {}", input.display(), output.display());
         }
 
-        run_typst_compile(&input, &output)?;
+        let date_str = meta
+            .date
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .unwrap_or_default();
+        run_typst_compile(&input, &output, &meta.title, &date_str)?;
         copy_post_assets(dir, &out_dir)?;
     }
 
@@ -84,7 +88,7 @@ pub fn clean_output_dir() -> Result<()> {
     Ok(())
 }
 
-fn run_typst_compile(input: &Path, output: &Path) -> Result<()> {
+fn run_typst_compile(input: &Path, output: &Path, title: &str, date: &str) -> Result<()> {
     let root = std::env::current_dir().context("无法获取当前工作目录")?;
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)
@@ -95,6 +99,10 @@ fn run_typst_compile(input: &Path, output: &Path) -> Result<()> {
         .arg("compile")
         .arg("--root")
         .arg(&root)
+        .arg("--input")
+        .arg(format!("title={title}"))
+        .arg("--input")
+        .arg(format!("date={date}"))
         .arg("--features")
         .arg("html")
         .arg("--format")
@@ -110,7 +118,7 @@ fn run_typst_compile(input: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 将 post/<slug>/ 下除 index.typ、meta.toml 外的文件与子目录复制到输出目录。
+/// 将 post/<id>/ 下除 index.typ、meta.toml 外的文件与子目录复制到输出目录。
 fn copy_post_assets(from: &Path, to: &Path) -> Result<()> {
     if !from.is_dir() {
         return Ok(());
@@ -154,7 +162,7 @@ fn copy_dir_all(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 列出 `post/<slug>/` 目录：必须同时存在 `index.typ` 与 `meta.toml`。
+/// 列出 `post/<id>/` 目录：必须同时存在 `index.typ` 与 `meta.toml`。
 fn collect_post_dirs(post_root: &Path) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     if !post_root.is_dir() {

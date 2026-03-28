@@ -6,10 +6,11 @@ use anyhow::{Context, Result};
 use chrono::NaiveDate;
 use serde::Deserialize;
 
-/// 博客列表与排序用的文章元数据（来自 `post/<slug>/meta.toml`）。
+/// 博客列表与排序用的文章元数据（来自 `post/<id>/meta.toml`）。
+/// `id` 为文章目录名，用作 URL 路径段。
 #[derive(Debug, Clone)]
 pub struct PostMeta {
-    pub slug: String,
+    pub id: String,
     pub title: String,
     pub date: Option<NaiveDate>,
     /// 修改时间，原始字符串（展示或 RSS 用）
@@ -27,12 +28,12 @@ struct MetaFile {
     draft: bool,
 }
 
-/// 从 `post/<slug>/` 目录读取 `meta.toml`。
+/// 从 `post/<id>/` 目录读取 `meta.toml`。
 pub fn post_meta_from_post_dir(post_dir: &Path) -> Result<PostMeta> {
-    let slug = post_dir
+    let id = post_dir
         .file_name()
         .and_then(|s| s.to_str())
-        .context("无法从路径解析 slug")?
+        .context("无法从路径解析文章 id")?
         .to_string();
     let path = post_dir.join("meta.toml");
     let raw = fs::read_to_string(&path).with_context(|| format!("无法读取 {}", path.display()))?;
@@ -41,7 +42,7 @@ pub fn post_meta_from_post_dir(post_dir: &Path) -> Result<PostMeta> {
     let date = NaiveDate::parse_from_str(m.date.trim(), "%Y-%m-%d")
         .with_context(|| format!("meta.toml 中 date 须为 YYYY-MM-DD，实际: {}", m.date))?;
     Ok(PostMeta {
-        slug,
+        id,
         title: m.title,
         date: Some(date),
         updated: m.updated,
@@ -54,7 +55,7 @@ pub fn sort_posts_desc(posts: &mut [PostMeta]) {
         (Some(da), Some(db)) => db.cmp(da),
         (Some(_), None) => Ordering::Less,
         (None, Some(_)) => Ordering::Greater,
-        (None, None) => a.slug.cmp(&b.slug),
+        (None, None) => a.id.cmp(&b.id),
     });
 }
 

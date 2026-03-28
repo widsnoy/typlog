@@ -37,7 +37,7 @@ pub fn write_index_html(out: &Path, site_title: &str, posts: &[PostMeta]) -> Res
     html.push_str("</h1>\n<ul>\n");
     for p in posts {
         html.push_str("<li><a href=\"posts/");
-        html.push_str(&p.slug);
+        html.push_str(&p.id);
         html.push_str("/index.html\">");
         html.push_str(&html_escape(&p.title));
         html.push_str("</a>");

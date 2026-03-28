@@ -10,7 +10,7 @@
 | Hexo 概念 | 本项目目标 | 说明 |
 | --- | --- | --- |
 | `hexo init` | `typlog init [目录]` | 脚手架：目录、`config` 样例、`post/`、`templates/`、`public/` 占位 |
-| `hexo new <title>` | `typlog new <slug>` | 按模板生成 `post/<slug>.typ`，预填元数据 |
+| `hexo new <title>` | `typlog new <id>` | 按模板生成 `post/<id>/`（`meta.toml` + `index.typ`） |
 | `hexo generate` | `typlog generate`（或 `build`） | 全量编译 + 生成列表等产物 |
 | `hexo clean` | `typlog clean` | 清理约定输出目录（如 `public/posts/`、生成的 index） |
 | `hexo server` | `typlog server` | 本地静态预览 `public/`，默认端口可配置 |
@@ -35,7 +35,7 @@
 ## 与 schedule 其它文件的对应关系
 
 - **generate / clean** 与 [03-backend-build-script.md](03-backend-build-script.md)、[04-backend-validation-and-ci.md](04-backend-validation-and-ci.md) 一致：CI 只跑与 `generate` 等价的非交互命令。
-- **init / new**：主要影响 [02-backend-directory-and-metadata.md](02-backend-directory-and-metadata.md) 的模板与契约；默认 `templates/post.typ` 为**自包含** Typst（`#set page` / `#set text` 等），不依赖额外的文章封装 `.typ`。
+- **init / new**：主要影响 [02-backend-directory-and-metadata.md](02-backend-directory-and-metadata.md) 的模板与契约；默认 `templates/post.typ` 为**自包含**版式；标题与日期以 `meta.toml` 为准，由 generate 经 `--input` 注入。
 - **server**：本地预览；与 [05-frontend-shell-and-routing.md](05-frontend-shell-and-routing.md) 联调（确保 `public/` 可完整浏览）。
 
 ## 验收清单

@@ -19,12 +19,12 @@ enum Commands {
         #[arg(default_value = ".")]
         dir: std::path::PathBuf,
     },
-    /// Create a new post at post/<slug>/index.typ
+    /// 在 post/<id>/ 下创建 meta.toml 与 index.typ（id 为 kebab-case 目录名）
     New {
-        /// Post slug, use kebab-case
-        slug: String,
+        /// 文章 id（目录名，用于 URL 路径段）
+        id: String,
     },
-    /// Compile post/<slug>/index.typ into public/posts/<slug>/index.html
+    /// 编译 post/<id>/index.typ → public/posts/<id>/index.html（元数据来自 meta.toml）
     Generate {
         /// Remove existing output directory before compiling
         #[arg(long)]
@@ -47,7 +47,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Init { dir } => init_workspace(&dir),
-        Commands::New { slug } => new_post(&slug),
+        Commands::New { id } => new_post(&id),
         Commands::Generate { clean, verbose } => generate(clean, verbose),
         Commands::Clean => clean_output_dir(),
         Commands::Server { port } => server::serve_public(port),

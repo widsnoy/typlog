@@ -1,4 +1,4 @@
-//! 新建文章时使用的模板：`templates/meta.toml` 与 `templates/post.typ`（占位符见模块内常量说明）。
+//! 新建文章时使用的模板：`templates/meta.toml` 与 `templates/post.typ`（内置默认见 `DEFAULT_*`；占位符替换见 [`render_template`]）。
 
 use std::fs;
 use std::path::Path;
@@ -23,21 +23,15 @@ pub const DEFAULT_POST_TYP_TEMPLATE: &str = r#"#set page(
   size: 11pt,
 )
 #set par(justify: true)
-#set document(title: "{title}")
-
-= {title}
-#text(size: 0.9em, fill: gray)[日期：{date}]
-#parbreak()
+#set document(title: sys.inputs.at("title", default: ""))
 
 在这里开始写正文。
 "#;
 
-/// 占位符：`{slug}`、`{date}`、`{title}`（新建时 `title` 默认等于 slug，可在 meta.toml 里改）。
-pub fn render_template(template: &str, slug: &str, date: &str, title: &str) -> String {
-    template
-        .replace("{slug}", slug)
-        .replace("{date}", date)
-        .replace("{title}", title)
+/// 替换 `{date}`、`{title}`（仅用于新建时的 `templates/meta.toml`）。
+/// 正文 `templates/post.typ` 不含占位符；标题与日期由 `typlog generate` 通过 `typst compile --input` 注入 `sys.inputs`。
+pub fn render_template(template: &str, date: &str, title: &str) -> String {
+    template.replace("{date}", date).replace("{title}", title)
 }
 
 /// 读取模板文件。
@@ -101,8 +95,8 @@ mod tests {
 
     #[test]
     fn render_replaces_placeholders() {
-        let out = render_template("x {slug} {date} {title}", "a", "2026-01-01", "T");
-        assert_eq!(out, "x a 2026-01-01 T");
+        let out = render_template("x {date} {title}", "2026-01-01", "T");
+        assert_eq!(out, "x 2026-01-01 T");
     }
 
     #[test]
