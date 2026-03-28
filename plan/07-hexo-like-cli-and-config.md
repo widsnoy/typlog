@@ -1,11 +1,20 @@
-# 07 工具链：对标 Hexo 的体验（不依赖 npm）
+# 07 工具链：对标 Hexo 的体验（核心构建不依赖 npm）
 
 **实现状态**：Rust 二进制 **`typlog`**（`crates/typlog`）已实现下表子命令；`config.toml` 使用 **`serde` 反序列化 `SiteConfig`**（`title`、`base_url`、`language`）；`init` 写入默认配置为 **`toml::to_string(&SiteConfig::default())`**。**已完成**（与 Hexo 对齐的交互；细节以代码为准）。
 
-## 约束（硬）
+## 约束（硬）：后端 / 核心构建
 
-- **构建与站点生成** 不得依赖 **Node.js / npm / pnpm / yarn**（无 `package.json` 作为必经路径、无 `node_modules`）。
-- 可选：未来若为主题开发单独提供「前端资源打包」，也须与 **正文构建** 解耦，且不作为默认路径。
+以下针对 **`typlog generate`**、仓库 **默认端到端构建** 与 **CI**（见 [04](04-backend-validation-and-ci.md)）：
+
+- **不得**依赖 **Node.js / npm / pnpm / yarn** 作为必经路径（无强制 `package.json`、`node_modules` 才能编译文章与写 `public/`）。
+- **不推荐**用 npm 脚本封装再调 Typst 作为**唯一**入口；默认入口仍是 **`typlog`**（Rust）。
+
+## 前端（允许 npm 等）
+
+- **主题、全局样式、组件化资源** 可使用 **npm / Vite / 任意前端工具** 开发与打包，只要：
+  - **与核心构建解耦**：CI 仍只跑 `cargo …`、`typlog generate`（及固定 Typst）；不强制贡献者安装 Node 才能通过后端构建。
+  - **产物落点明确**：例如打包输出写入 `themes/<name>/assets/` 或约定目录，再由 `generate` 复制进 `public/`，或文档说明「先 `npm run build` 主题再 `typlog generate`」的本地流程。
+- 主题与生成器如何协作（meta/正文嵌入）：见 [08](08-frontend-architecture.md)；其余见 [05](05-frontend-shell-and-routing.md)、[06](06-frontend-quality-and-release.md)。
 
 ## 目标体验（与 Hexo 对齐的交互）
 
@@ -24,12 +33,12 @@
 - **首选：Rust** 实现 `typlog` CLI（单仓库内 `cargo` 工程，发布为单一静态二进制）——**已采用**。
 - 原型阶段可例外：Just / Makefile 过渡——**非必须**；当前无强制 Makefile。
 
-**不计划采用** Python 作为默认实现；**不采用** Node/npm 作为构建主路径（见上文硬约束）。
+**不计划采用** Python 作为 `typlog` 的默认实现。**核心构建主路径** 不是 Node/npm（见上文「约束（硬）」）。
 
 ## 实现路径（与语言对应）
 
 1. **目标形态**：**Rust 二进制** `typlog`；仓库根 `cargo build -p typlog` 产出可执行文件。
-2. **不推荐**：用 npm 封装一层再调 Typst；长期维护 Bash + PowerShell 双份入口。
+2. **核心入口**：不推荐用 **仅** npm 封装再调 Typst 作为仓库唯一构建方式；若主题子项目自带 `package.json`，应为**可选**前端子树，不替代 `typlog generate`。
 
 ## 与 schedule 其它文件的对应关系
 
@@ -39,7 +48,7 @@
 
 ## 验收清单
 
-- [x] 文档路径不出现 npm 脚本作为必经构建步骤。
+- [x] **核心构建**文档与 CI 路径不出现 npm 脚本作为**必经**步骤；前端子项目可自带 npm，但不作为默认后端依赖。
 - [ ] `typlog generate` 在 CI 与本地一致（CI 待 04）。
 - [x] `typlog new` 生成文件符合 02 中元数据契约。
 - [x] `typlog server` 能打开首页与文章（本地验证）；部署子路径待 05。

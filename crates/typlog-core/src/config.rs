@@ -12,6 +12,9 @@ pub struct SiteConfig {
     pub base_url: String,
     #[serde(default = "default_language")]
     pub language: String,
+    /// 主题 id，对应 `themes/<id>/assets/`（由 `typlog generate` 复制到 `public/assets/themes/<id>/`）
+    #[serde(default = "default_theme")]
+    pub theme: String,
 }
 
 fn default_title() -> String {
@@ -26,12 +29,17 @@ fn default_language() -> String {
     "zh-CN".to_string()
 }
 
+fn default_theme() -> String {
+    "material".to_string()
+}
+
 impl Default for SiteConfig {
     fn default() -> Self {
         Self {
             title: default_title(),
             base_url: default_base_url(),
             language: default_language(),
+            theme: default_theme(),
         }
     }
 }
@@ -99,6 +107,7 @@ language = "en"
         assert_eq!(c.title, "Only");
         assert_eq!(c.base_url, "/");
         assert_eq!(c.language, "zh-CN");
+        assert_eq!(c.theme, "material");
         let _ = std::fs::remove_file(&p);
     }
 

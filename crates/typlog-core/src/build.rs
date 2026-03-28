@@ -5,7 +5,7 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 
 use crate::config::load_site_config;
-use crate::html::write_index_html;
+use crate::html::{inject_theme_post_html, write_index_html};
 use crate::meta::{PostMeta, post_meta_from_post_dir, sort_posts_desc};
 
 pub fn generate(clean: bool, verbose: bool) -> Result<()> {
@@ -21,6 +21,10 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
     }
     fs::create_dir_all(output_dir)
         .with_context(|| format!("无法创建目录: {}", output_dir.display()))?;
+
+    let site = load_site_config();
+    copy_theme_assets(site.theme.as_str())
+        .with_context(|| format!("复制主题资源失败: {}", site.theme))?;
 
     let post_dirs = collect_post_dirs(input_dir)?;
     if post_dirs.is_empty() {
@@ -55,6 +59,11 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
             .unwrap_or_default();
         run_typst_compile(&input, &output, &meta.title, &date_str)?;
         copy_post_assets(dir, &out_dir)?;
+        let raw = fs::read_to_string(&output)
+            .with_context(|| format!("无法读取 {}", output.display()))?;
+        let patched = inject_theme_post_html(&raw, &site, meta);
+        fs::write(&output, patched)
+            .with_context(|| format!("无法写入 {}", output.display()))?;
     }
 
     let mut index_metas: Vec<PostMeta> = entries
@@ -64,9 +73,8 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
         .collect();
     sort_posts_desc(&mut index_metas);
 
-    let site_title = load_site_config().title;
     let index_path = Path::new("public/index.html");
-    write_index_html(index_path, &site_title, &index_metas)?;
+    write_index_html(index_path, &site, &index_metas)?;
 
     println!(
         "完成: 已生成 {} 与 {}",
@@ -213,6 +221,21 @@ fn copy_post_assets(from: &Path, to: &Path) -> Result<()> {
             })?;
         }
     }
+    Ok(())
+}
+
+/// 将 `themes/<theme>/assets/` 复制到 `public/assets/themes/<theme>/`。
+fn copy_theme_assets(theme: &str) -> Result<()> {
+    let src = Path::new("themes").join(theme).join("assets");
+    let dst = Path::new("public").join("assets").join("themes").join(theme);
+    if !src.is_dir() {
+        bail!(
+            "主题资源目录不存在: {}（请将 themes/{}/assets 置于仓库根，或运行 typlog init）",
+            src.display(),
+            theme
+        );
+    }
+    copy_dir_all(&src, &dst)?;
     Ok(())
 }
 

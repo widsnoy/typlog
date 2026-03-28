@@ -1,0 +1,227 @@
+/* Material-inspired (reference: hexo-theme-material look-and-feel, standalone CSS) */
+:root {
+  --md-primary: #3f51b5;
+  --md-primary-dark: #303f9f;
+  --md-accent: #ff4081;
+  --md-text: #212121;
+  --md-text-secondary: #757575;
+  --md-divider: #e0e0e0;
+  --md-bg: #f5f5f5;
+  --md-surface: #fff;
+  --md-shadow-1: 0 2px 2px rgba(0, 0, 0, 0.14), 0 1px 5px rgba(0, 0, 0, 0.12);
+  --md-shadow-2: 0 4px 5px rgba(0, 0, 0, 0.14), 0 1px 10px rgba(0, 0, 0, 0.12);
+  /* 主栏：大屏加宽，两侧留白随视口缩小（避免中间一条过窄） */
+  --md-content-max: min(1400px, calc(100vw - 28px));
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body.typlog-material {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--md-text);
+  background: var(--md-bg);
+  line-height: 1.6;
+}
+
+/* —— App bar（标题靠左贴边，与 Material 顶栏一致）—— */
+.material-appbar {
+  background: var(--md-primary);
+  color: #fff;
+  box-shadow: var(--md-shadow-2);
+  position: sticky;
+  top: 0;
+  z-index: 8;
+}
+
+.material-appbar-inner {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 20px 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.material-appbar-brand {
+  color: #fff;
+  text-decoration: none;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-align: left;
+}
+
+.material-appbar-brand:hover {
+  opacity: 0.92;
+}
+
+/* —— Index page —— */
+.material-index-wrap {
+  width: 100%;
+  max-width: var(--md-content-max);
+  margin: 0 auto;
+  padding: 16px clamp(14px, 2.5vw, 28px) 40px;
+  text-align: left;
+}
+
+.material-page-title {
+  margin: 0 0 4px;
+  font-size: 1.375rem;
+  font-weight: 500;
+  color: var(--md-text);
+  text-align: left;
+}
+
+.material-page-sub {
+  margin: 0 0 16px;
+  font-size: 0.875rem;
+  color: var(--md-text-secondary);
+  text-align: left;
+}
+
+.material-post-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.material-post-card {
+  background: var(--md-surface);
+  border-radius: 2px;
+  box-shadow: var(--md-shadow-1);
+  transition: box-shadow 0.2s ease;
+}
+
+.material-post-card:hover {
+  box-shadow: var(--md-shadow-2);
+}
+
+.material-post-card-inner {
+  display: block;
+  padding: 16px 20px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.material-post-card-title {
+  margin: 0 0 6px;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--md-primary-dark);
+}
+
+.material-post-card:hover .material-post-card-title {
+  color: var(--md-accent);
+}
+
+.material-post-card-meta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--md-text-secondary);
+}
+
+.material-post-card-meta time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— Post page —— */
+.material-post-main {
+  width: 100%;
+  max-width: var(--md-content-max);
+  margin: 0 auto;
+  padding: 16px clamp(14px, 2.5vw, 28px) 48px;
+}
+
+.material-article-hero {
+  background: var(--md-surface);
+  border-radius: 2px;
+  box-shadow: var(--md-shadow-1);
+  padding: 20px 22px 18px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.material-article-title {
+  margin: 0 0 8px;
+  font-size: 1.625rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--md-text);
+  text-align: left;
+}
+
+.material-article-date {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--md-text-secondary);
+}
+
+.material-article-date time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Typst HTML body */
+.material-typst {
+  background: var(--md-surface);
+  border-radius: 2px;
+  box-shadow: var(--md-shadow-1);
+  padding: 24px 28px 32px;
+}
+
+.material-typst p {
+  margin: 0 0 1em;
+}
+
+.material-typst p:last-child {
+  margin-bottom: 0;
+}
+
+.material-typst h1,
+.material-typst h2,
+.material-typst h3 {
+  font-weight: 400;
+  margin: 1.25em 0 0.5em;
+}
+
+.material-typst pre,
+.material-typst code {
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.9em;
+}
+
+.material-typst pre {
+  overflow-x: auto;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-radius: 2px;
+  border: 1px solid var(--md-divider);
+}
+
+.material-typst img {
+  max-width: 100%;
+  height: auto;
+}
+
+.material-typst a {
+  color: var(--md-primary);
+}
+
+.material-typst a:hover {
+  color: var(--md-accent);
+}

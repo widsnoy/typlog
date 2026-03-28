@@ -2,6 +2,8 @@
 
 **实现状态**：**部分完成**。`write_index_html` 已生成最小 `public/index.html`（列表 + 链到 `posts/<id>/index.html`）；`typlog server` 可预览；文章页 **无** 统一页脚/返回链接；`base_url` **未** 用于链接前缀。
 
+**架构总览**（主题 vs 生成器、meta 如何嵌入）：见 [08-frontend-architecture.md](08-frontend-architecture.md)。
+
 ## 前置条件
 
 - 01–04 已完成并通过验收（见 `00-index.md` 中「后端阶段完成判定」）。
@@ -21,6 +23,11 @@
 
 - 全局 CSS：如 `public/assets/css/site.css`。
 - 与 02 中资源目录约定对齐，避免混用相对路径导致部署后断裂。
+
+## 工具链（与后端区分）
+
+- **后端 / `typlog generate`**：仍 **不依赖** npm，见 [07](07-hexo-like-cli-and-config.md)。
+- **本阶段前端**：允许使用 **npm、Vite、Sass** 等开发与打包主题或样式；产物进入 `themes/…/assets/` 或 `public/` 后由 `generate` 引用或复制。CI 若只验核心构建，可不要求安装 Node。
 
 ## 验收清单
 

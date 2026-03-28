@@ -11,7 +11,7 @@
 
 ## 命令形态（逻辑要求）
 
-- **禁止**以 `package.json` / `npm run` 作为默认构建路径；须与 [07-hexo-like-cli-and-config.md](07-hexo-like-cli-and-config.md) 一致（`typlog generate`）。
+- **禁止**以 `package.json` / `npm run` 作为 **后端默认** 构建路径；须与 [07-hexo-like-cli-and-config.md](07-hexo-like-cli-and-config.md) 一致（`typlog generate`）。独立前端主题子目录若含 npm，**不得**成为 CI / `typlog generate` 的硬前置。
 - 入口：仓库主入口为 **`cargo run -p typlog --` / 安装后的 `typlog`**；与 CI 应对齐同一命令（CI 待 04）。
 - 参数：`--clean`、`--verbose`；已实现。
 

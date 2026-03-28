@@ -10,13 +10,13 @@
 
 - 明确的 **Typst 版本** 与启用 HTML 导出所需的 **feature**（当前实现为 `typst compile --features html --format html`；**精确版本号待写入仓库**，见 04）。
 - **`post/<文章 id>/` → `public/posts/<文章 id>/index.html`** 的映射规则文档化（见 [02](02-backend-directory-and-metadata.md)）。
-- **构建入口**（脚本或任务）：单命令全量构建；**不依赖 npm/Node**；对标 Hexo 式子命令与配置见 [07-hexo-like-cli-and-config.md](07-hexo-like-cli-and-config.md)。可选 watch 仅作本地开发便利，非首版必须。
+- **构建入口**（脚本或任务）：单命令全量构建；**不依赖 npm/Node**（指 **`typlog generate` 与后端管线**）；对标 Hexo 式子命令与配置见 [07-hexo-like-cli-and-config.md](07-hexo-like-cli-and-config.md)。**前端**主题与资源可使用 npm 等，须与核心构建解耦（见 07）。可选 watch 仅作本地开发便利，非首版必须。
 - **失败策略**：任一篇编译失败 → 进程非 0 退出；不在失败时留下半套“看似成功”的产物（或文档说明清理行为）。
 
 ## 明确排除（属前端阶段）
 
 - 首页、归档页、标签页的 **完整版式与交互**（当前仅有 **极简** `public/index.html` 列表，见 [05](05-frontend-shell-and-routing.md)）。
-- 全局 CSS 主题、响应式细节、字体栈（构建阶段仅需保证 HTML 可打开即可）。
+- 全局 CSS 主题、响应式细节、字体栈（**核心构建**阶段仅需保证 HTML 可打开即可；主题可用 npm 等工具开发，见 [07](07-hexo-like-cli-and-config.md)）。
 - SEO 的 `meta`/`og`、RSS、sitemap（可在 06 或后续迭代）。
 
 ## 里程碑

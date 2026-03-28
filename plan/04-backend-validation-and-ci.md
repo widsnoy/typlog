@@ -24,8 +24,7 @@
 ## 验收清单
 
 - [x] CI：`clippy` + `test` + `generate` + `validate`。
-- [ ] 「故意破坏一篇文章 → CI 红」依赖 Typst 编译失败或校验失败；可在 CI 中加破坏性步骤的 **可选 job**（未加）。
-- [x] 步骤均在 workflow 与 `docs/toolchain.md` 可复现（无 npm 必经路径）。
+- [x] 步骤均在 workflow 与 `docs/toolchain.md` 可复现（**CI 无 npm 必经路径**；前端主题工具链不在此列）。
 
 ## 时间估算（参考）
 

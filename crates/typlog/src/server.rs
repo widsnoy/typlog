@@ -2,13 +2,17 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use tiny_http::{Header, Response, Server, StatusCode};
 
 pub fn serve_public(port: u16) -> Result<()> {
-    let root = Path::new("public");
+    let cwd = std::env::current_dir().context("无法获取当前工作目录")?;
+    let root = cwd.join("public");
     if !root.exists() {
-        bail!("缺少 public/ 目录，请先执行 generate");
+        bail!(
+            "缺少 public/ 目录（已解析为 {}），请在博客仓库根目录执行 generate",
+            root.display()
+        );
     }
 
     let address = format!("127.0.0.1:{port}");
