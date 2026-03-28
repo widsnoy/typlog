@@ -12,11 +12,24 @@ draft = false
 "#;
 
 /// 默认 `templates/post.typ` 内容；生成到文章目录时写入为 `index.typ`。
-pub const DEFAULT_POST_TYP_TEMPLATE: &str = r#"#import "/templates/article.typ": article
+/// 自包含版式（纸张、边距、正文字体与语言），不依赖 `#import` 其它模板文件。
+pub const DEFAULT_POST_TYP_TEMPLATE: &str = r#"#set page(
+  paper: "a4",
+  margin: (x: 2.5cm, y: 2.5cm),
+)
+#set text(
+  font: "New Computer Modern",
+  lang: "zh",
+  size: 11pt,
+)
+#set par(justify: true)
+#set document(title: "{title}")
 
-#article("{title}", "{date}")[
+= {title}
+#text(size: 0.9em, fill: gray)[日期：{date}]
+#parbreak()
+
 在这里开始写正文。
-]
 "#;
 
 /// 占位符：`{slug}`、`{date}`、`{title}`（新建时 `title` 默认等于 slug，可在 meta.toml 里改）。
