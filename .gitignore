@@ -2,3 +2,6 @@
 /public/posts
 /public/index.html
 /post
+/config.toml
+/templates
+/docs
