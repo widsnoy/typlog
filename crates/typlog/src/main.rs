@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use typlog_core::{clean_output_dir, generate, init_workspace, new_post};
+use typlog_core::{clean_output_dir, generate, init_workspace, new_post, validate_generated_site};
 
 mod server;
 
@@ -35,6 +35,8 @@ enum Commands {
     },
     /// Remove generated files under public/posts
     Clean,
+    /// 校验 public/ 与非草稿文章数一致（无需重新编译）
+    Validate,
     /// Preview the generated static site under public/
     Server {
         /// HTTP listen port
@@ -50,6 +52,7 @@ fn main() -> Result<()> {
         Commands::New { id } => new_post(&id),
         Commands::Generate { clean, verbose } => generate(clean, verbose),
         Commands::Clean => clean_output_dir(),
+        Commands::Validate => validate_generated_site(),
         Commands::Server { port } => server::serve_public(port),
     }
 }

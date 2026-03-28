@@ -8,7 +8,7 @@ pub mod meta;
 pub mod post;
 pub mod scaffold;
 
-pub use build::{clean_output_dir, generate};
+pub use build::{clean_output_dir, generate, validate_generated_site};
 pub use config::{
     SiteConfig, default_site_config_toml, load_site_config, load_site_config_from_path,
 };

@@ -1,6 +1,6 @@
 # 03 后端：构建脚本
 
-**实现状态**：由 Rust crate `typlog-core::build` + CLI `typlog generate` 实现（**已完成**）。仓库内 **未** 单独维护 Typst 版本号文件（与 04「版本锁定」待补）。
+**实现状态**：由 Rust crate `typlog-core::build` + CLI `typlog generate` 实现（**已完成**）。Typst 版本见 **`docs/toolchain.md`**，与 CI 一致（见 [04](04-backend-validation-and-ci.md)）。`generate` 末尾执行 **`validate_generated_site`**；亦可单独运行 **`typlog validate`**。
 
 ## 职责
 

@@ -6,15 +6,15 @@
 
 | 文档 | 状态 | 说明 |
 | --- | --- | --- |
-| [01](01-backend-goals-and-scope.md) | **基本完成** | Rust + `typlog generate` 管线已落地；Typst 精确版本未在仓库锁定；失败即停已满足。 |
+| [01](01-backend-goals-and-scope.md) | **基本完成** | 构建管线与失败策略已满足；Typst 版本见 `docs/toolchain.md`。 |
 | [02](02-backend-directory-and-metadata.md) | **已完成** | `post/<id>/` + `meta.toml` + `index.typ`；`generate` 注入 `--input`；与实现一致。 |
-| [07](07-hexo-like-cli-and-config.md) | **已完成** | `typlog` 二进制、`config.toml`（`SiteConfig`：`title` / `base_url` / `language`）、`init`/`new`/`generate`/`clean`/`server`。 |
-| [03](03-backend-build-script.md) | **已完成** | 扫描子目录、`typst compile --features html --format html`、`--clean`/`--verbose`；**未**单独记录 Typst 版本文件。 |
-| [04](04-backend-validation-and-ci.md) | **未开始** | 无 GitHub Actions / 无「篇数 vs 产物」自动校验脚本；README 未写完整复现步骤。 |
-| [05](05-frontend-shell-and-routing.md) | **部分完成** | 已有 `public/index.html` 列表与链接；文章页由 Typst 导出 HTML，**尚无**统一「返回首页」链；`config.base_url` 尚未参与链接拼接。 |
+| [07](07-hexo-like-cli-and-config.md) | **已完成** | `typlog` 二进制、`config.toml`（`SiteConfig`）、`init`/`new`/`generate`/`clean`/`server`/`validate`。 |
+| [03](03-backend-build-script.md) | **已完成** | 扫描子目录、`typst compile` HTML、`--clean`/`--verbose`。 |
+| [04](04-backend-validation-and-ci.md) | **已完成（初版）** | `validate_generated_site` + `typlog validate`；`.github/workflows/ci.yml`；`docs/toolchain.md`（Typst 0.14.2）。 |
+| [05](05-frontend-shell-and-routing.md) | **部分完成** | 已有 `public/index.html` 列表；文章页无统一「返回首页」；`base_url` 未参与链接。 |
 | [06](06-frontend-quality-and-release.md) | **未开始** | 样式/RSS/sitemap/部署文档等未做。 |
 
-**结论**：当前处于 **后端主干（01–03 + 07）已可用**，**04（校验 + CI）与 05 剩余项、06 未做**。下一优先工作建议：**04**（CI + 校验），其次 **05**（文章页回链 / base URL）。
+**结论**：**后端阶段 01–04 已可收口**；下一优先 **05**（回链 / `base_url`），其次 **06**。
 
 ## 名词约定（本项目内）
 
@@ -52,7 +52,7 @@ flowchart TD
 以下 **与当前代码** 对照：
 
 - [x] 本地一条命令：`typlog generate` 将非草稿 `post/<id>/index.typ` 编译为 `public/posts/<id>/index.html`，失败即退出。
-- [ ] **校验**：`post/` 参与构建篇数与 `public/posts/` 下输出一致（排除草稿）——**尚未实现**。
-- [ ] **CI**：固定 Typst 版本、非 npm 构建——**尚未实现**。
+- [x] **校验**：`generate` 末尾及 `typlog validate` 检查非草稿集合与 `public/posts` 一致，并粗检 HTML。
+- [x] **CI**：GitHub Actions 安装固定 Typst、`cargo clippy`、`cargo test`、`generate`、`validate`（见 `.github/workflows/ci.yml`）。
 - [x] **构建链路不经过 Node/npm**。
 - [x] 空 `post/`（或无有效文章目录）：`generate` **失败**并提示。

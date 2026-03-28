@@ -1,6 +1,6 @@
 # 01 后端目标与范围
 
-**实现状态**：目标与失败策略已满足；**Typst 版本锁定**（见 04）尚未写入仓库；CI 未接。
+**实现状态**：目标与失败策略已满足；Typst 版本与 CI 见 [04](04-backend-validation-and-ci.md)、`docs/toolchain.md`。
 
 ## 目标
 
@@ -23,7 +23,7 @@
 
 - **M1**：单篇 `post/<id>/index.typ`（及 `meta.toml`）→ `public/posts/<id>/index.html` 可重复成功（**已实现**）。
 - **M2**：目录内多篇批量成功，且 `typlog generate` / `clean` 行为可预期（**已实现**）。
-- **M3**：CI 仅执行构建与校验，绿即表示后端阶段可用（**未实现**，见 04）。
+- **M3**：CI 执行 `clippy`、`test`、`generate`、`validate`（**已实现**，见 [04](04-backend-validation-and-ci.md)）。
 
 ## 风险与缓冲
 

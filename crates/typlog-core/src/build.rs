@@ -73,7 +73,79 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
         index_path.display(),
         output_dir.display()
     );
+
+    validate_generated_site().context("构建产物校验失败")?;
     Ok(())
+}
+
+/// 校验 `public/index.html` 与 `public/posts/<id>/index.html` 与非草稿文章一致且内容像 HTML。
+pub fn validate_generated_site() -> Result<()> {
+    validate_generated_site_paths(Path::new("post"), Path::new("public"))
+}
+
+fn validate_generated_site_paths(post_root: &Path, public_root: &Path) -> Result<()> {
+    let public_posts = public_root.join("posts");
+    let public_index = public_root.join("index.html");
+
+    let dirs = collect_post_dirs(post_root)?;
+    let mut expected: Vec<String> = Vec::new();
+    for dir in &dirs {
+        let meta = post_meta_from_post_dir(dir)?;
+        if !meta.draft {
+            expected.push(meta.id.clone());
+        }
+    }
+    expected.sort();
+
+    let index_raw = fs::read_to_string(&public_index)
+        .with_context(|| format!("缺少或无法读取 {}", public_index.display()))?;
+    if !html_looks_valid(&index_raw) {
+        bail!("{} 内容异常（缺少 HTML 标记）", public_index.display());
+    }
+
+    for id in &expected {
+        let html_path = public_posts.join(id).join("index.html");
+        let raw = fs::read_to_string(&html_path)
+            .with_context(|| format!("缺少或无法读取期望输出: {}", html_path.display()))?;
+        if !html_looks_valid(&raw) {
+            bail!("{} 内容异常（缺少 HTML 标记）", html_path.display());
+        }
+    }
+
+    let mut actual: Vec<String> = Vec::new();
+    if public_posts.is_dir() {
+        for entry in fs::read_dir(&public_posts)
+            .with_context(|| format!("无法读取 {}", public_posts.display()))?
+        {
+            let entry = entry?;
+            if !entry
+                .file_type()
+                .with_context(|| format!("无法读取文件类型: {}", entry.path().display()))?
+                .is_dir()
+            {
+                continue;
+            }
+            let name = entry.file_name();
+            let Some(id) = name.to_str() else {
+                bail!("文章目录名须为 UTF-8");
+            };
+            if public_posts.join(id).join("index.html").is_file() {
+                actual.push(id.to_string());
+            }
+        }
+    }
+    actual.sort();
+
+    if expected != actual {
+        bail!("public/posts 下产物与应发布文章不一致: 期望 {expected:?} 实际 {actual:?}");
+    }
+
+    Ok(())
+}
+
+fn html_looks_valid(s: &str) -> bool {
+    let head = s.get(..4096.min(s.len())).unwrap_or(s).to_ascii_lowercase();
+    head.contains("<!doctype html") || head.contains("<html")
 }
 
 pub fn clean_output_dir() -> Result<()> {
@@ -191,4 +263,74 @@ fn collect_post_dirs(post_root: &Path) -> Result<Vec<PathBuf>> {
     }
     out.sort();
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_passes_when_posts_match_public() {
+        let dir = std::env::temp_dir().join(format!("typlog-validate-ok-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("post/a")).unwrap();
+        fs::write(
+            dir.join("post/a/meta.toml"),
+            r#"title = "A"
+date = "2026-01-01"
+draft = false
+"#,
+        )
+        .unwrap();
+        fs::write(dir.join("post/a/index.typ"), "#set text[]\nok").unwrap();
+        fs::create_dir_all(dir.join("public/posts/a")).unwrap();
+        fs::write(
+            dir.join("public/index.html"),
+            "<!DOCTYPE html><html><body></body></html>",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("public/posts/a/index.html"),
+            "<!DOCTYPE html><html><body></body></html>",
+        )
+        .unwrap();
+        validate_generated_site_paths(&dir.join("post"), &dir.join("public")).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn validate_fails_when_extra_public_dir() {
+        let dir =
+            std::env::temp_dir().join(format!("typlog-validate-extra-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("post/a")).unwrap();
+        fs::write(
+            dir.join("post/a/meta.toml"),
+            r#"title = "A"
+date = "2026-01-01"
+draft = false
+"#,
+        )
+        .unwrap();
+        fs::write(dir.join("post/a/index.typ"), "#x").unwrap();
+        fs::create_dir_all(dir.join("public/posts/a")).unwrap();
+        fs::create_dir_all(dir.join("public/posts/orphan")).unwrap();
+        fs::write(
+            dir.join("public/posts/orphan/index.html"),
+            "<!DOCTYPE html><html></html>",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("public/index.html"),
+            "<!DOCTYPE html><html></html>",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("public/posts/a/index.html"),
+            "<!DOCTYPE html><html></html>",
+        )
+        .unwrap();
+        assert!(validate_generated_site_paths(&dir.join("post"), &dir.join("public")).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

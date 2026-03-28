@@ -1,31 +1,31 @@
 # 04 后端：校验与 CI
 
-**实现状态**：**未开始**。仓库内无 `.github/workflows`；构建后 **未** 自动比对「参与构建文章数」与 `public/posts/` 产出；无 Typst 版本锁定文件。
+**实现状态**：**已完成（初版）**。见 `.github/workflows/ci.yml`、`docs/toolchain.md`；`typlog-core::validate_generated_site` 在 `generate` 末尾执行，并提供 **`typlog validate`**。
 
 ## 校验（构建后）
 
 在 **不启动浏览器自动化** 的前提下，至少做：
 
-- **计数**：`post/` 中参与构建的文章数（排除草稿）与 `public/posts/<id>/index.html` 篇数一致——**待实现**（当前仅靠人工或本地检查）。
+- **计数 / 集合一致**：非草稿文章 id 集合与 `public/posts/<id>/`（且含 `index.html`）一致；**已实现**（`validate_generated_site`）。
 - **重复文章 id**：同一文件系统下目录名唯一，**自然互斥**；若未来支持别名仍须防冲突。
-- **可选**：简单 HTML 存在性检查（文件非空、包含 `<html` 或 `DOCTYPE`）——**待实现**。
+- **HTML 粗检**：`public/index.html` 与各篇 `index.html` 片段内含 `<!DOCTYPE html` 或 `<html`（大小写不敏感）；**已实现**。
 
 ## CI 工作流（后端阶段）
 
-- 触发：`push` / `pull_request` 至主分支——**待添加**。
-- 步骤：检出 → 安装 **固定版本** Typst → `cargo test` / `typlog generate`（**非** `npm install` / `npm run`）→ 运行校验 → 失败则红。
-- **本阶段可不部署**；若已有托管，可先 **artifact 上传** 或 **仅主分支部署**，按团队习惯。
+- 触发：`push` / `pull_request` → `main` / `master`（见 `.github/workflows/ci.yml`）。
+- 步骤：检出 → 安装 **Typst 0.14.2**（与 `docs/toolchain.md` 一致）→ `cargo clippy -D warnings` → `cargo test` → `typlog generate --clean --verbose` → **`typlog validate`**。
+- **本阶段可不部署**。
 
 ## 版本锁定
 
-- 在仓库记录：所需 Typst 精确版本（如 `0.14.x`）——**待添加**（README 或 `typlog.toml` / `docs/toolchain.md` 等）。
-- CI 与 README 的安装方式一致（官方安装脚本、包管理器或容器镜像）。
+- **Typst**：`docs/toolchain.md`；CI 环境变量 `TYPST_VERSION` 与之对齐。
+- CI 与文档使用同一发行版资产（Linux `musl` 压缩包）。
 
 ## 验收清单
 
-- [ ] 故意破坏一篇文章：CI 失败。
-- [ ] 修复后：CI 通过。
-- [ ] 无「仅本地通过」的隐藏步骤（所有步骤在 README 可复制）。
+- [x] CI：`clippy` + `test` + `generate` + `validate`。
+- [ ] 「故意破坏一篇文章 → CI 红」依赖 Typst 编译失败或校验失败；可在 CI 中加破坏性步骤的 **可选 job**（未加）。
+- [x] 步骤均在 workflow 与 `docs/toolchain.md` 可复现（无 npm 必经路径）。
 
 ## 时间估算（参考）
 

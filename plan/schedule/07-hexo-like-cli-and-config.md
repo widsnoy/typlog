@@ -16,6 +16,7 @@
 | `hexo generate` | `typlog generate` | 全量编译 + 写 `public/index.html` 列表 |
 | `hexo clean` | `typlog clean` | 清理 `public/posts/`（保留根目录其它文件） |
 | `hexo server` | `typlog server --port <端口>` | 本地静态预览 `public/` |
+| （校验） | `typlog validate` | 检查 `public/` 与非草稿文章一致（`generate` 已内含） |
 | `_config.yml` | `config.toml` | 站点 `title`、`base_url`、`language`（与文章 `meta.toml` 分离） |
 
 ## 实现语言（计划定稿）
