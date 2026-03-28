@@ -1,0 +1,126 @@
+# 推送 v* 标签时创建 GitHub Release，正文为自上一 v* 标签以来的提交列表。
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo build --release
+        run: cargo build --release -p typlog
+
+      - name: Package
+        run: |
+          set -eux
+          mkdir -p dist
+          NAME="typlog-${{ github.ref_name }}-x86_64-unknown-linux-gnu"
+          cp target/release/typlog "dist/${NAME}"
+          chmod +x "dist/${NAME}"
+          tar -czvf "${NAME}.tar.gz" -C dist "${NAME}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-tarball
+          path: "typlog-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz"
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo build --release
+        run: cargo build --release -p typlog
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}"
+          $exe = "typlog-$v-x86_64-pc-windows-msvc.exe"
+          Copy-Item "target/release/typlog.exe" -Destination $exe
+          Compress-Archive -Path $exe -DestinationPath "typlog-$v-x86_64-pc-windows-msvc.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: "typlog-${{ github.ref_name }}-x86_64-pc-windows-msvc.zip"
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-tarball
+          path: dist-linux
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-zip
+          path: dist-win
+
+      - name: Write release notes
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -eux
+          PREV="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)"
+          if [ -n "${PREV}" ]; then
+            TITLE="自 ${PREV} 至 ${TAG_NAME} 的提交"
+            NOTES="$(git log "${PREV}..HEAD" --pretty=format:'- %s (%h)' --no-merges || true)"
+          else
+            TITLE="本版本包含的提交（尚无更早的 v* 标签）"
+            NOTES="$(git log --pretty=format:'- %s (%h)' --no-merges || true)"
+          fi
+          if [ -z "${NOTES}" ]; then
+            NOTES="- （无新提交记录，或仅含合并提交）"
+          fi
+          {
+            echo "## ${TITLE}"
+            echo ""
+            echo "${NOTES}"
+            echo ""
+            echo "---"
+            echo ""
+            echo "- **标签**: \`${TAG_NAME}\`"
+            echo "- **提交**: \`${GITHUB_SHA:0:7}\`"
+            echo "- **工具链**: 见仓库 \`docs/toolchain.md\`"
+            echo ""
+            echo "### Assets"
+            echo ""
+            echo "- \`typlog-${TAG_NAME}-x86_64-unknown-linux-gnu.tar.gz\` — Linux (glibc)"
+            echo "- \`typlog-${TAG_NAME}-x86_64-pc-windows-msvc.zip\` — Windows"
+          } > release_body.md
+          cat release_body.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: release_body.md
+          files: |
+            dist-linux/*.tar.gz
+            dist-win/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

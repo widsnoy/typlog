@@ -1,6 +1,6 @@
 # 04 后端：校验与 CI
 
-**实现状态**：**已完成（初版）**。见 `.github/workflows/ci.yml`、`docs/toolchain.md`；`typlog-core::validate_generated_site` 在 `generate` 末尾执行，并提供 **`typlog validate`**。
+**实现状态**：**已完成（初版）**。见 `.github/workflows/ci.yml`、`docs/toolchain.md`；`typlog-core::validate_generated_site` 在 `generate` 末尾执行，并提供 **`typlog validate`**。推送 **`v*`** 标签时由 `.github/workflows/release.yml` 创建 **GitHub Release**（说明含提交列表、附构建产物），见 **`docs/releasing.md`**。
 
 ## 校验（构建后）
 
