@@ -1,10 +1,12 @@
+use std::cmp::Ordering;
+use std::fmt::Write;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail};
-use chrono::Local;
+use chrono::{Local, NaiveDate};
 use clap::{Parser, Subcommand};
 use tiny_http::{Header, Response, Server, StatusCode};
 
@@ -135,7 +137,7 @@ fn generate(clean: bool, verbose: bool) -> Result<()> {
         bail!("未找到任何 .typ 文件，请先在 post/ 目录添加文章");
     }
 
-    for input in posts {
+    for input in &posts {
         let slug = input
             .file_stem()
             .and_then(|s| s.to_str())
@@ -146,10 +148,134 @@ fn generate(clean: bool, verbose: bool) -> Result<()> {
             println!("编译: {} -> {}", input.display(), output.display());
         }
 
-        run_typst_compile(&input, &output)?;
+        run_typst_compile(input, &output)?;
     }
 
-    println!("完成: 已生成 HTML 到 {}", output_dir.display());
+    let mut metas: Vec<PostMeta> = posts
+        .iter()
+        .map(|p| post_meta_from_file(p))
+        .collect::<Result<_>>()?;
+    sort_posts_desc(&mut metas);
+
+    let site_title = read_site_title();
+    let index_path = Path::new("public/index.html");
+    write_index_html(index_path, &site_title, &metas)?;
+
+    println!(
+        "完成: 已生成 {} 与 {}",
+        index_path.display(),
+        output_dir.display()
+    );
+    Ok(())
+}
+
+struct PostMeta {
+    slug: String,
+    title: String,
+    date: Option<NaiveDate>,
+}
+
+fn post_meta_from_file(path: &Path) -> Result<PostMeta> {
+    let slug = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .context("无法解析文件名为 slug")?
+        .to_string();
+    let content =
+        fs::read_to_string(path).with_context(|| format!("无法读取 {}", path.display()))?;
+    let title = parse_let_value(&content, "title").unwrap_or_else(|| slug.clone());
+    let date = parse_let_value(&content, "date")
+        .and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok());
+    Ok(PostMeta { slug, title, date })
+}
+
+fn parse_let_value(content: &str, key: &str) -> Option<String> {
+    let prefix = format!("#let {key} = \"");
+    for line in content.lines().take(128) {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix(&prefix) else {
+            continue;
+        };
+        let Some(end) = rest.find('"') else {
+            continue;
+        };
+        return Some(rest[..end].to_string());
+    }
+    None
+}
+
+fn sort_posts_desc(posts: &mut [PostMeta]) {
+    posts.sort_by(|a, b| match (&a.date, &b.date) {
+        (Some(da), Some(db)) => db.cmp(da),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => a.slug.cmp(&b.slug),
+    });
+}
+
+fn read_site_title() -> String {
+    let path = Path::new("config.toml");
+    let Ok(content) = fs::read_to_string(path) else {
+        return "Typlog".to_string();
+    };
+    for line in content.lines() {
+        let line = line.split('#').next().unwrap_or("").trim();
+        if !line.starts_with("title") {
+            continue;
+        }
+        let Some(eq) = line.find('=') else {
+            continue;
+        };
+        let val = line[eq + 1..].trim();
+        if let Some(inner) = val.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+            return inner.to_string();
+        }
+    }
+    "Typlog".to_string()
+}
+
+fn html_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+fn write_index_html(out: &Path, site_title: &str, posts: &[PostMeta]) -> Result<()> {
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("无法创建目录: {}", parent.display()))?;
+    }
+    let mut html = String::new();
+    html.push_str("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n");
+    html.push_str("<meta charset=\"utf-8\">\n");
+    html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    html.push_str("<title>");
+    html.push_str(&html_escape(site_title));
+    html.push_str("</title>\n</head>\n<body>\n");
+    html.push_str("<h1>");
+    html.push_str(&html_escape(site_title));
+    html.push_str("</h1>\n<ul>\n");
+    for p in posts {
+        html.push_str("<li><a href=\"posts/");
+        html.push_str(&p.slug);
+        html.push_str(".html\">");
+        html.push_str(&html_escape(&p.title));
+        html.push_str("</a>");
+        if let Some(d) = p.date {
+            let _ = write!(&mut html, " <span>{}</span>", d.format("%Y-%m-%d"));
+        }
+        html.push_str("</li>\n");
+    }
+    html.push_str("</ul>\n</body>\n</html>\n");
+    fs::write(out, html).with_context(|| format!("无法写入 {}", out.display()))?;
     Ok(())
 }
 
@@ -270,7 +396,7 @@ fn validate_slug(slug: &str) -> Result<()> {
 mod tests {
     use std::path::Path;
 
-    use super::{guess_content_type, validate_slug};
+    use super::{guess_content_type, html_escape, parse_let_value, validate_slug};
 
     #[test]
     fn slug_should_pass_when_kebab_case() {
@@ -288,6 +414,21 @@ mod tests {
             guess_content_type(Path::new("a/b/c.html")),
             "text/html; charset=utf-8"
         );
+    }
+
+    #[test]
+    fn parse_let_should_read_title_and_date() {
+        let s = r#"#let title = "Hello"
+#let date = "2026-01-02"
+"#;
+        assert_eq!(parse_let_value(s, "title").as_deref(), Some("Hello"));
+        assert_eq!(parse_let_value(s, "date").as_deref(), Some("2026-01-02"));
+    }
+
+    #[test]
+    fn html_escape_should_escape_special_chars() {
+        assert_eq!(html_escape("&<>"), "&amp;&lt;&gt;");
+        assert_eq!(html_escape("\""), "&quot;");
     }
 }
 
