@@ -325,9 +325,17 @@ name = "typlog"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "clap",
  "tiny_http",
+ "typlog-core",
+]
+
+[[package]]
+name = "typlog-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
 ]
 
 [[package]]

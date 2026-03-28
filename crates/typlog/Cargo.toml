@@ -1,0 +1,14 @@
+[package]
+name = "typlog"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "typlog"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+tiny_http = "0.12"
+typlog-core = { path = "../typlog-core" }
