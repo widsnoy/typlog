@@ -9,7 +9,7 @@ use crate::scaffold::{
     render_template,
 };
 
-/// 校验文章目录名（用作 `post/<id>/` 与 URL 路径段）：小写字母、数字、短横线。
+/// 校验文章目录名（用作 `posts/<id>/` 与 URL 路径段）：小写字母、数字、短横线。
 pub fn validate_post_id(id: &str) -> Result<()> {
     if id.is_empty() {
         bail!("文章 id 不能为空");
@@ -25,7 +25,7 @@ pub fn validate_post_id(id: &str) -> Result<()> {
 
 pub fn new_post(id: &str) -> Result<()> {
     validate_post_id(id)?;
-    let post_root = Path::new("post");
+    let post_root = Path::new("posts");
     fs::create_dir_all(post_root)
         .with_context(|| format!("无法创建目录: {}", post_root.display()))?;
 

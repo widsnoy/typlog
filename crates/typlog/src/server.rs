@@ -52,7 +52,7 @@ pub fn serve_public(port: u16) -> Result<()> {
                 }
                 resp
             }
-            Err(_) => Response::from_string("Not Found").with_status_code(StatusCode(404)),
+            Err(_) => Response::from_string("未找到").with_status_code(StatusCode(404)),
         };
         let _ = request.respond(response);
     }

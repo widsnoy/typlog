@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use chrono::NaiveDate;
 use serde::Deserialize;
 
-/// 博客列表与排序用的文章元数据（来自 `post/<id>/meta.toml`）。
+/// 博客列表与排序用的文章元数据（来自 `posts/<id>/meta.toml`）。
 /// `id` 为文章目录名，用作 URL 路径段。
 #[derive(Debug, Clone)]
 pub struct PostMeta {
@@ -28,7 +28,7 @@ struct MetaFile {
     draft: bool,
 }
 
-/// 从 `post/<id>/` 目录读取 `meta.toml`。
+/// 从 `posts/<id>/` 目录读取 `meta.toml`。
 pub fn post_meta_from_post_dir(post_dir: &Path) -> Result<PostMeta> {
     let id = post_dir
         .file_name()

@@ -12,21 +12,18 @@ pub struct SiteConfig {
     pub base_url: String,
     #[serde(default = "default_language")]
     pub language: String,
-    /// 主题 id，对应 `themes/<id>/assets/`（由 `typlog generate` 复制到 `public/assets/themes/<id>/`）
-    #[serde(default = "default_theme")]
-    pub theme: String,
-    /// 全站背景图：相对站点根的路径（如 `assets/bg.jpg`）或 `https://...`；不设置则无背景图
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub background_image: Option<String>,
+    /// 全站背景图：相对站点根的路径（如 `background.webp`）或 `https://...`；空字符串表示无背景图
+    #[serde(default)]
+    pub background_image: String,
     /// 背景图透明度，0～1（作用于背景图层）
     #[serde(default = "default_background_opacity")]
     pub background_opacity: f64,
     /// 背景模糊（像素），0 表示不模糊
     #[serde(default)]
     pub background_blur_px: u32,
-    /// 首页 hero 区签名/标语；不设置则不显示 hero 区
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub signature: Option<String>,
+    /// 首页 hero 区签名/标语；空字符串表示不显示 hero 区
+    #[serde(default)]
+    pub signature: String,
 }
 
 fn default_title() -> String {
@@ -41,10 +38,6 @@ fn default_language() -> String {
     "zh-CN".to_string()
 }
 
-fn default_theme() -> String {
-    "material".to_string()
-}
-
 fn default_background_opacity() -> f64 {
     1.0
 }
@@ -55,11 +48,10 @@ impl Default for SiteConfig {
             title: default_title(),
             base_url: default_base_url(),
             language: default_language(),
-            theme: default_theme(),
-            background_image: None,
+            background_image: String::new(),
             background_opacity: default_background_opacity(),
             background_blur_px: 0,
-            signature: None,
+            signature: String::new(),
         }
     }
 }
@@ -127,8 +119,7 @@ language = "en"
         assert_eq!(c.title, "Only");
         assert_eq!(c.base_url, "/");
         assert_eq!(c.language, "zh-CN");
-        assert_eq!(c.theme, "material");
-        assert!(c.background_image.is_none());
+        assert!(c.background_image.is_empty());
         assert_eq!(c.background_opacity, 1.0);
         assert_eq!(c.background_blur_px, 0);
         let _ = std::fs::remove_file(&p);
@@ -139,6 +130,18 @@ language = "en"
         let s = default_site_config_toml().expect("serialize");
         let parsed: SiteConfig = toml::from_str(&s).expect("deserialize");
         assert_eq!(parsed, SiteConfig::default());
+    }
+
+    #[test]
+    fn default_site_config_toml_lists_background_and_signature() {
+        let s = default_site_config_toml().expect("serialize");
+        assert!(
+            s.contains("background_image")
+                && s.contains("background_opacity")
+                && s.contains("background_blur_px")
+                && s.contains("signature"),
+            "typlog init 写入的 config 应包含背景与签名字段，便于用户直接编辑：\n{s}"
+        );
     }
 
     #[test]

@@ -5,7 +5,7 @@ use typlog_core::{clean_output_dir, generate, init_workspace, new_post, validate
 mod server;
 
 #[derive(Parser, Debug)]
-#[command(name = "typlog", version, about = "Typst blog tooling")]
+#[command(name = "typlog", version, about = "Typst 静态博客：文章、构建与本地预览")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -13,33 +13,33 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Initialize a new typlog workspace
+    /// 在目标目录创建 posts/、themes/、templates/ 等（默认当前目录）
     Init {
-        /// Target directory, defaults to current directory
+        /// 目标目录
         #[arg(default_value = ".")]
         dir: std::path::PathBuf,
     },
-    /// 在 post/<id>/ 下创建 meta.toml 与 index.typ（id 为 kebab-case 目录名）
+    /// 在 posts/<id>/ 下创建 meta.toml 与 index.typ（id 为 kebab-case 目录名）
     New {
-        /// 文章 id（目录名，用于 URL 路径段）
+        /// 文章 id（目录名，用作 URL 路径段）
         id: String,
     },
-    /// 编译 post/<id>/index.typ → public/posts/<id>/index.html（元数据来自 meta.toml）
+    /// 将 posts/<id>/index.typ 编译为 public/posts/<id>/index.html，并生成首页（元数据来自 meta.toml）
     Generate {
-        /// Remove existing output directory before compiling
+        /// 生成前先删除整个 public/ 目录
         #[arg(long)]
         clean: bool,
-        /// Show each compile command
+        /// 打印每篇文章的 typst 编译命令
         #[arg(long)]
         verbose: bool,
     },
-    /// Remove generated files under public/posts
+    /// 删除整个 public/ 目录（仅清理，不编译）
     Clean,
-    /// 校验 public/ 与非草稿文章数一致（无需重新编译）
+    /// 校验 public/ 与非草稿文章是否一致（无需重新编译）
     Validate,
-    /// Preview the generated static site under public/
+    /// 在本地 HTTP 服务中预览 public/ 静态站
     Server {
-        /// HTTP listen port
+        /// 监听端口
         #[arg(long, default_value_t = 4000)]
         port: u16,
     },

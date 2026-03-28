@@ -9,7 +9,7 @@ use crate::html::{inject_theme_post_html, write_index_html};
 use crate::meta::{PostMeta, post_meta_from_post_dir, sort_posts_desc};
 
 pub fn generate(clean: bool, verbose: bool) -> Result<()> {
-    let input_dir = Path::new("post");
+    let input_dir = Path::new("posts");
     let output_dir = Path::new("public/posts");
 
     if !input_dir.exists() {
@@ -23,12 +23,11 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
         .with_context(|| format!("无法创建目录: {}", output_dir.display()))?;
 
     let site = load_site_config();
-    copy_theme_assets(site.theme.as_str())
-        .with_context(|| format!("复制主题资源失败: {}", site.theme))?;
+    copy_theme_to_public().context("复制主题文件失败")?;
 
     let post_dirs = collect_post_dirs(input_dir)?;
     if post_dirs.is_empty() {
-        bail!("未找到有效文章目录（需要 post/<id>/index.typ 与 meta.toml）");
+        bail!("未找到有效文章目录（需要 posts/<id>/index.typ 与 meta.toml）");
     }
 
     let mut entries: Vec<(PathBuf, PostMeta)> = Vec::new();
@@ -58,7 +57,7 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
             .map(|d| d.format("%Y-%m-%d").to_string())
             .unwrap_or_default();
         run_typst_compile(&input, &output, &meta.title, &date_str)?;
-        copy_post_assets(dir, &out_dir)?;
+        copy_post_resources(dir, &out_dir)?;
         let raw = fs::read_to_string(&output)
             .with_context(|| format!("无法读取 {}", output.display()))?;
         let patched = inject_theme_post_html(&raw, &site, meta);
@@ -88,7 +87,7 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
 
 /// 校验 `public/index.html` 与 `public/posts/<id>/index.html` 与非草稿文章一致且内容像 HTML。
 pub fn validate_generated_site() -> Result<()> {
-    validate_generated_site_paths(Path::new("post"), Path::new("public"))
+    validate_generated_site_paths(Path::new("posts"), Path::new("public"))
 }
 
 fn validate_generated_site_paths(post_root: &Path, public_root: &Path) -> Result<()> {
@@ -198,8 +197,8 @@ fn run_typst_compile(input: &Path, output: &Path, title: &str, date: &str) -> Re
     Ok(())
 }
 
-/// 将 post/<id>/ 下除 index.typ、meta.toml 外的文件与子目录复制到输出目录。
-fn copy_post_assets(from: &Path, to: &Path) -> Result<()> {
+/// 将 posts/<id>/ 下除 index.typ、meta.toml 外的文件与子目录复制到输出目录。
+fn copy_post_resources(from: &Path, to: &Path) -> Result<()> {
     if !from.is_dir() {
         return Ok(());
     }
@@ -224,18 +223,17 @@ fn copy_post_assets(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 将 `themes/<theme>/assets/` 复制到 `public/assets/themes/<theme>/`。
-fn copy_theme_assets(theme: &str) -> Result<()> {
-    let src = Path::new("themes").join(theme).join("assets");
-    let dst = Path::new("public").join("assets").join("themes").join(theme);
+/// 将 `themes/` 下文件复制到 `public/` 根目录（与首页、`posts/` 并列）。
+fn copy_theme_to_public() -> Result<()> {
+    let src = Path::new("themes");
+    let dst = Path::new("public");
     if !src.is_dir() {
         bail!(
-            "主题资源目录不存在: {}（请将 themes/{}/assets 置于仓库根，或运行 typlog init）",
+            "主题目录不存在: {}（请将 themes/ 置于仓库根，或运行 typlog init）",
             src.display(),
-            theme
         );
     }
-    copy_dir_all(&src, &dst)?;
+    copy_dir_all(src, dst)?;
     Ok(())
 }
 
@@ -257,7 +255,7 @@ fn copy_dir_all(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 列出 `post/<id>/` 目录：必须同时存在 `index.typ` 与 `meta.toml`。
+/// 列出 `posts/<id>/` 目录：必须同时存在 `index.typ` 与 `meta.toml`。
 fn collect_post_dirs(post_root: &Path) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     if !post_root.is_dir() {
@@ -296,16 +294,16 @@ mod tests {
     fn validate_passes_when_posts_match_public() {
         let dir = std::env::temp_dir().join(format!("typlog-validate-ok-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(dir.join("post/a")).unwrap();
+        fs::create_dir_all(dir.join("posts/a")).unwrap();
         fs::write(
-            dir.join("post/a/meta.toml"),
+            dir.join("posts/a/meta.toml"),
             r#"title = "A"
 date = "2026-01-01"
 draft = false
 "#,
         )
         .unwrap();
-        fs::write(dir.join("post/a/index.typ"), "#set text[]\nok").unwrap();
+        fs::write(dir.join("posts/a/index.typ"), "#set text[]\nok").unwrap();
         fs::create_dir_all(dir.join("public/posts/a")).unwrap();
         fs::write(
             dir.join("public/index.html"),
@@ -317,7 +315,7 @@ draft = false
             "<!DOCTYPE html><html><body></body></html>",
         )
         .unwrap();
-        validate_generated_site_paths(&dir.join("post"), &dir.join("public")).unwrap();
+        validate_generated_site_paths(&dir.join("posts"), &dir.join("public")).unwrap();
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -326,16 +324,16 @@ draft = false
         let dir =
             std::env::temp_dir().join(format!("typlog-validate-extra-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(dir.join("post/a")).unwrap();
+        fs::create_dir_all(dir.join("posts/a")).unwrap();
         fs::write(
-            dir.join("post/a/meta.toml"),
+            dir.join("posts/a/meta.toml"),
             r#"title = "A"
 date = "2026-01-01"
 draft = false
 "#,
         )
         .unwrap();
-        fs::write(dir.join("post/a/index.typ"), "#x").unwrap();
+        fs::write(dir.join("posts/a/index.typ"), "#x").unwrap();
         fs::create_dir_all(dir.join("public/posts/a")).unwrap();
         fs::create_dir_all(dir.join("public/posts/orphan")).unwrap();
         fs::write(
@@ -353,7 +351,7 @@ draft = false
             "<!DOCTYPE html><html></html>",
         )
         .unwrap();
-        assert!(validate_generated_site_paths(&dir.join("post"), &dir.join("public")).is_err());
+        assert!(validate_generated_site_paths(&dir.join("posts"), &dir.join("public")).is_err());
         let _ = fs::remove_dir_all(&dir);
     }
 }

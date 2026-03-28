@@ -24,15 +24,12 @@ pub fn html_escape(s: &str) -> String {
     out
 }
 
-fn theme_css_path_index(theme: &str) -> String {
-    format!("assets/themes/{theme}/site.css")
-}
+/// 首页引用的主题 CSS（`themes/` 经 generate 同步到 `public/` 根目录）。
+const THEME_CSS_HREF_INDEX: &str = "site.css";
+/// 文章页相对 `public/posts/<id>/index.html` 的主题 CSS 路径。
+const THEME_CSS_HREF_POST: &str = "../../site.css";
 
-fn theme_css_path_post(theme: &str) -> String {
-    format!("../../assets/themes/{theme}/site.css")
-}
-
-/// `path_prefix`：相对当前 HTML 文件到站点根，首页为 `""`，文章为 `"../../"`。
+/// `path_prefix`：从当前 HTML 到站点根的相对路径前缀；首页为 `""`，文章页为 `"../../"`。
 fn resolve_background_image_url(raw: &str, path_prefix: &str) -> String {
     let s = raw.trim();
     if s.starts_with("http://") || s.starts_with("https://") {
@@ -49,10 +46,8 @@ fn css_url_value(url: &str) -> String {
 
 /// 根据 `config.toml` 注入全站背景图 / 透明度 / 模糊（`body::before` 固定层）。
 pub(crate) fn background_style_for_site(site: &SiteConfig, path_prefix: &str) -> String {
-    let Some(img) = site.background_image.as_ref() else {
-        return String::new();
-    };
-    if img.trim().is_empty() {
+    let img = site.background_image.trim();
+    if img.is_empty() {
         return String::new();
     }
     let url = resolve_background_image_url(img, path_prefix);
@@ -106,10 +101,7 @@ fn render_index_post_items(posts: &[PostMeta]) -> String {
 }
 
 fn hero_html(site: &SiteConfig) -> String {
-    let Some(sig) = site.signature.as_ref() else {
-        return String::new();
-    };
-    let sig = sig.trim();
+    let sig = site.signature.trim();
     if sig.is_empty() {
         return String::new();
     }
@@ -120,7 +112,7 @@ fn hero_html(site: &SiteConfig) -> String {
 }
 
 fn render_index_html(site: &SiteConfig, posts: &[PostMeta]) -> String {
-    let css_href = html_escape(&theme_css_path_index(site.theme.as_str()));
+    let css_href = html_escape(THEME_CSS_HREF_INDEX);
     let title = html_escape(site.title.as_str());
     let lang = html_escape(site.language.as_str());
     let post_items = render_index_post_items(posts);
@@ -149,8 +141,7 @@ pub fn write_index_html(out: &Path, site: &SiteConfig, posts: &[PostMeta]) -> Re
 
 /// 在 Typst 生成的文章 HTML 上注入 Material 顶栏、文首 meta 与主题样式，并把正文包进 `.material-typst`。
 pub fn inject_theme_post_html(html: &str, site: &SiteConfig, meta: &PostMeta) -> String {
-    let theme = site.theme.as_str();
-    let css_href = theme_css_path_post(theme);
+    let css_href = THEME_CSS_HREF_POST;
     let home = "../../index.html";
     let site_title = html_escape(site.title.as_str());
     let post_title = html_escape(meta.title.as_str());
@@ -174,7 +165,7 @@ pub fn inject_theme_post_html(html: &str, site: &SiteConfig, meta: &PostMeta) ->
     );
     let bg = background_style_for_site(site, "../../");
     let mut inject = String::new();
-    if !s.contains(&css_href) {
+    if !s.contains(css_href) {
         inject.push_str(&head_snippet);
     }
     if !bg.is_empty() && !s.contains("typlog-site-bg") {
@@ -258,20 +249,20 @@ mod tests {
         assert!(out.contains("material-appbar"));
         assert!(out.contains("material-typst"));
         assert!(out.contains("<p>Hi</p>"));
-        assert!(out.contains("assets/themes/material/site.css"));
+        assert!(out.contains("site.css"));
     }
 
     #[test]
     fn background_style_resolves_post_relative_path() {
         let site = SiteConfig {
-            background_image: Some("assets/bg.jpg".into()),
+            background_image: "bg.jpg".into(),
             background_opacity: 0.7,
             background_blur_px: 8,
             ..Default::default()
         };
         let s = super::background_style_for_site(&site, "../../");
         assert!(s.contains("typlog-site-bg"));
-        assert!(s.contains("../../assets/bg.jpg"));
+        assert!(s.contains("../../bg.jpg"));
         assert!(s.contains("opacity: 0.7"));
         assert!(s.contains("blur(8px)"));
     }
