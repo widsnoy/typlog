@@ -9,7 +9,9 @@ pub mod post;
 pub mod scaffold;
 
 pub use build::{clean_output_dir, generate};
-pub use config::{SiteConfig, load_site_config, load_site_config_from_path};
+pub use config::{
+    SiteConfig, default_site_config_toml, load_site_config, load_site_config_from_path,
+};
 pub use init::init_workspace;
 pub use meta::{PostMeta, post_meta_from_post_dir, sort_posts_desc};
 pub use post::{new_post, validate_post_id};

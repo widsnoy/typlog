@@ -3,6 +3,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
+use crate::config::default_site_config_toml;
 use crate::scaffold::ensure_scaffold_templates;
 
 pub fn init_workspace(dir: &Path) -> Result<()> {
@@ -15,10 +16,7 @@ pub fn init_workspace(dir: &Path) -> Result<()> {
 
     let config_path = dir.join("config.toml");
     if !config_path.exists() {
-        let config = r#"title = "Typlog"
-base_url = "/"
-language = "zh-CN"
-"#;
+        let config = default_site_config_toml().context("序列化默认 config.toml 失败")?;
         fs::write(&config_path, config)
             .with_context(|| format!("无法写入文件: {}", config_path.display()))?;
     }

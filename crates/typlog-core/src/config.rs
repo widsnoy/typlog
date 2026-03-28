@@ -1,10 +1,10 @@
 use std::fs;
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// 站点级配置（`config.toml`），与文章 `meta.toml` 分离。
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SiteConfig {
     #[serde(default = "default_title")]
     pub title: String,
@@ -34,6 +34,11 @@ impl Default for SiteConfig {
             language: default_language(),
         }
     }
+}
+
+/// 将默认 [`SiteConfig`] 序列化为 TOML 文本（供 `typlog init` 写入 `config.toml`）。
+pub fn default_site_config_toml() -> Result<String, toml::ser::Error> {
+    toml::to_string(&SiteConfig::default())
 }
 
 /// 读取仓库根目录的 `config.toml`；文件缺失或解析失败时返回 [`SiteConfig::default`]。
@@ -95,6 +100,13 @@ language = "en"
         assert_eq!(c.base_url, "/");
         assert_eq!(c.language, "zh-CN");
         let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn default_config_roundtrips_toml() {
+        let s = default_site_config_toml().expect("serialize");
+        let parsed: SiteConfig = toml::from_str(&s).expect("deserialize");
+        assert_eq!(parsed, SiteConfig::default());
     }
 
     #[test]
