@@ -24,6 +24,9 @@ pub struct SiteConfig {
     /// 背景模糊（像素），0 表示不模糊
     #[serde(default)]
     pub background_blur_px: u32,
+    /// 首页 hero 区签名/标语；不设置则不显示 hero 区
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 fn default_title() -> String {
@@ -56,6 +59,7 @@ impl Default for SiteConfig {
             background_image: None,
             background_opacity: default_background_opacity(),
             background_blur_px: 0,
+            signature: None,
         }
     }
 }

@@ -61,7 +61,9 @@ pub(crate) fn background_style_for_site(site: &SiteConfig, path_prefix: &str) ->
     let url_css = css_url_value(&url);
     format!(
         r#"<style id="typlog-site-bg">
-body.typlog-material {{ background-color: transparent !important; }}
+/* 盖过 site.css 的 `background:` 简写；body 背景透明后，`::before` 的 z-index:-1 才露在正文之下 */
+html {{ background: transparent; }}
+body.typlog-material {{ background: transparent !important; }}
 body.typlog-material::before {{
   content: "";
   display: block;
@@ -103,6 +105,20 @@ fn render_index_post_items(posts: &[PostMeta]) -> String {
     out
 }
 
+fn hero_html(site: &SiteConfig) -> String {
+    let Some(sig) = site.signature.as_ref() else {
+        return String::new();
+    };
+    let sig = sig.trim();
+    if sig.is_empty() {
+        return String::new();
+    }
+    format!(
+        "<div class=\"material-index-hero\"><p class=\"material-index-signature\">{}</p></div>\n",
+        html_escape(sig)
+    )
+}
+
 fn render_index_html(site: &SiteConfig, posts: &[PostMeta]) -> String {
     let css_href = html_escape(&theme_css_path_index(site.theme.as_str()));
     let title = html_escape(site.title.as_str());
@@ -116,6 +132,7 @@ fn render_index_html(site: &SiteConfig, posts: &[PostMeta]) -> String {
             "{{typlog_background_style}}",
             &background_style_for_site(site, ""),
         )
+        .replace("{{typlog_hero}}", &hero_html(site))
         .replace("{{typlog_post_items}}", &post_items)
 }
 

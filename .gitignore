@@ -1,6 +1,5 @@
 /target
-/public/posts
-/public/index.html
+/public
 /post
 /config.toml
 /templates

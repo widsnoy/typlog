@@ -157,7 +157,7 @@ fn html_looks_valid(s: &str) -> bool {
 }
 
 pub fn clean_output_dir() -> Result<()> {
-    let output_dir = Path::new("public/posts");
+    let output_dir = Path::new("public/");
     if output_dir.exists() {
         fs::remove_dir_all(output_dir)
             .with_context(|| format!("无法清理目录: {}", output_dir.display()))?;
