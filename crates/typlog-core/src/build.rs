@@ -4,7 +4,7 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use crate::config::read_site_title;
+use crate::config::load_site_config;
 use crate::html::write_index_html;
 use crate::meta::{PostMeta, post_meta_from_post_dir, sort_posts_desc};
 
@@ -64,7 +64,7 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
         .collect();
     sort_posts_desc(&mut index_metas);
 
-    let site_title = read_site_title();
+    let site_title = load_site_config().title;
     let index_path = Path::new("public/index.html");
     write_index_html(index_path, &site_title, &index_metas)?;
 
