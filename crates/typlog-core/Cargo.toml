@@ -2,6 +2,7 @@
 name = "typlog-core"
 version = "0.1.0"
 edition = "2024"
+include = ["Cargo.toml", "src/**/*", "templates/**/*"]
 
 [dependencies]
 anyhow = "1"

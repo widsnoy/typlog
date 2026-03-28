@@ -6,6 +6,10 @@ use anyhow::{Context, Result};
 use crate::config::SiteConfig;
 use crate::meta::PostMeta;
 
+const INDEX_HTML: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/index.html"));
+const INDEX_POST_ITEM_HTML: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/index_post_item.html"));
+
 pub fn html_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -80,60 +84,48 @@ body.typlog-material::before {{
     )
 }
 
-/// 生成首页 HTML（Material 风格壳 + 主题 CSS）。
+fn render_index_post_items(posts: &[PostMeta]) -> String {
+    let mut out = String::new();
+    for p in posts {
+        let date_html = match p.date {
+            Some(d) => {
+                let iso = d.format("%Y-%m-%d").to_string();
+                format!(r#"<time datetime="{iso}">{iso}</time>"#)
+            }
+            None => String::new(),
+        };
+        let row = INDEX_POST_ITEM_HTML
+            .replace("{{typlog_post_id}}", &html_escape(&p.id))
+            .replace("{{typlog_post_title}}", &html_escape(&p.title))
+            .replace("{{typlog_post_date}}", &date_html);
+        out.push_str(&row);
+    }
+    out
+}
+
+fn render_index_html(site: &SiteConfig, posts: &[PostMeta]) -> String {
+    let css_href = html_escape(&theme_css_path_index(site.theme.as_str()));
+    let title = html_escape(site.title.as_str());
+    let lang = html_escape(site.language.as_str());
+    let post_items = render_index_post_items(posts);
+    INDEX_HTML
+        .replace("{{typlog_lang}}", &lang)
+        .replace("{{typlog_title}}", &title)
+        .replace("{{typlog_css_href}}", &css_href)
+        .replace(
+            "{{typlog_background_style}}",
+            &background_style_for_site(site, ""),
+        )
+        .replace("{{typlog_post_items}}", &post_items)
+}
+
+/// 生成首页 HTML（Material 风格壳 + 主题 CSS）；结构见 `templates/index.html`。
 pub fn write_index_html(out: &Path, site: &SiteConfig, posts: &[PostMeta]) -> Result<()> {
     if let Some(parent) = out.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("无法创建目录: {}", parent.display()))?;
     }
-    let css_href = theme_css_path_index(site.theme.as_str());
-    let lang = html_escape(site.language.as_str());
-    let title = html_escape(site.title.as_str());
-    let mut html = String::new();
-    html.push_str("<!DOCTYPE html>\n<html lang=\"");
-    html.push_str(&lang);
-    html.push_str("\">\n<head>\n");
-    html.push_str("<meta charset=\"utf-8\">\n");
-    html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-    html.push_str("<title>");
-    html.push_str(&title);
-    html.push_str("</title>\n");
-    html.push_str("<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n");
-    html.push_str("<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n");
-    html.push_str("<link href=\"https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap\" rel=\"stylesheet\">\n");
-    html.push_str("<link rel=\"stylesheet\" href=\"");
-    html.push_str(&html_escape(&css_href));
-    html.push_str("\">\n");
-    html.push_str(&background_style_for_site(site, ""));
-    html.push_str("</head>\n<body class=\"typlog-material\">\n");
-    html.push_str("<header class=\"material-appbar\"><div class=\"material-appbar-inner\">");
-    html.push_str("<a class=\"material-appbar-brand\" href=\"index.html\">");
-    html.push_str(&title);
-    html.push_str("</a></div></header>\n");
-    html.push_str("<main class=\"material-index-wrap\">\n");
-    html.push_str("<h1 class=\"material-page-title\">");
-    html.push_str(&title);
-    html.push_str("</h1>\n");
-    html.push_str("<p class=\"material-page-sub\">文章列表</p>\n");
-    html.push_str("<ul class=\"material-post-list\">\n");
-    for p in posts {
-        html.push_str("<li class=\"material-post-card\"><a class=\"material-post-card-inner\" href=\"posts/");
-        html.push_str(&html_escape(&p.id));
-        html.push_str("/index.html\">\n");
-        html.push_str("<h2 class=\"material-post-card-title\">");
-        html.push_str(&html_escape(&p.title));
-        html.push_str("</h2>\n");
-        html.push_str("<p class=\"material-post-card-meta\">");
-        if let Some(d) = p.date {
-            html.push_str("<time datetime=\"");
-            html.push_str(&d.format("%Y-%m-%d").to_string());
-            html.push_str("\">");
-            html.push_str(&d.format("%Y-%m-%d").to_string());
-            html.push_str("</time>");
-        }
-        html.push_str("</p>\n</a></li>\n");
-    }
-    html.push_str("</ul>\n</main>\n</body>\n</html>\n");
+    let html = render_index_html(site, posts);
     fs::write(out, html).with_context(|| format!("无法写入 {}", out.display()))?;
     Ok(())
 }
