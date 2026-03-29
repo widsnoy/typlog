@@ -8,10 +8,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&family=Roboto:ital,wght@0,400;0,500;0,700;1,300&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{typlog_css_href}}">
+<script src="{{typlog_turbo_script}}" defer></script>
+{{typlog_glass_vars}}
 {{typlog_background_style}}</head>
 <body class="typlog-material">
-<header class="material-appbar"><div class="material-appbar-inner"><a class="material-appbar-brand" href="index.html">{{typlog_title}}</a></div></header>
-<main class="material-index-wrap">
+<div id="typlog-bg" data-turbo-permanent aria-hidden="true"></div>
+<header class="material-appbar"><div class="material-appbar-inner"><a class="material-appbar-brand" href="{{typlog_home_href}}">{{typlog_title}}</a></div></header>
+<main id="typlog-main" class="material-index-wrap">
 {{typlog_hero}}<ul class="material-post-list">
 {{typlog_post_items}}</ul>
 </main>

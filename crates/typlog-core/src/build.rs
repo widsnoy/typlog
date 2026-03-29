@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
+use image::{ImageFormat, imageops};
 
-use crate::config::load_site_config;
+use crate::config::{SiteConfig, load_site_config};
 use crate::html::{inject_theme_post_html, write_index_html};
 use crate::meta::{PostMeta, post_meta_from_post_dir, sort_posts_desc};
 
@@ -23,7 +24,8 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
         .with_context(|| format!("无法创建目录: {}", output_dir.display()))?;
 
     let site = load_site_config();
-    copy_theme_to_public().context("复制主题文件失败")?;
+    copy_theme_to_public(&site).context("复制主题文件失败")?;
+    let site = preprocess_background_asset(site, verbose)?;
 
     let post_dirs = collect_post_dirs(input_dir)?;
     if post_dirs.is_empty() {
@@ -60,6 +62,7 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
         copy_post_resources(dir, &out_dir)?;
         let raw = fs::read_to_string(&output)
             .with_context(|| format!("无法读取 {}", output.display()))?;
+        let raw = add_native_image_lazy_attrs(&raw);
         let patched = inject_theme_post_html(&raw, &site, meta);
         fs::write(&output, patched)
             .with_context(|| format!("无法写入 {}", output.display()))?;
@@ -83,6 +86,64 @@ pub fn generate(clean: bool, verbose: bool) -> Result<()> {
 
     validate_generated_site().context("构建产物校验失败")?;
     Ok(())
+}
+
+/// 将 `config.toml` 的背景图在构建期预模糊，避免前端运行时对全屏层做 `filter: blur()`。
+///
+/// 规则：
+/// - 仅当 `background_blur_px > 0` 且 `background_image` 为本地文件路径时生效；
+/// - 输出到 `public/background-preblur.png`；
+/// - 返回的配置会被改写为：`background_image = "background-preblur.png"`，`background_blur_px = 0`。
+fn preprocess_background_asset(mut site: SiteConfig, verbose: bool) -> Result<SiteConfig> {
+    if site.background_blur_px == 0 {
+        return Ok(site);
+    }
+    let bg = site.background_image.trim().to_string();
+    if bg.is_empty() {
+        return Ok(site);
+    }
+    if bg.starts_with("http://") || bg.starts_with("https://") {
+        if verbose {
+            println!("跳过背景预处理：远程图片不做本地预模糊 ({bg})");
+        }
+        return Ok(site);
+    }
+
+    let src = Path::new(&bg);
+    if !src.is_file() {
+        if verbose {
+            println!("跳过背景预处理：文件不存在 ({})", src.display());
+        }
+        return Ok(site);
+    }
+
+    let sigma = site.background_blur_px as f32;
+    let out_rel = "background-preblur.png";
+    let out_path = Path::new("public").join(out_rel);
+
+    let img = image::open(src)
+        .with_context(|| format!("读取背景图失败（用于预处理）: {}", src.display()))?;
+    let rgba = img.to_rgba8();
+    let blurred = imageops::blur(&rgba, sigma);
+    blurred.save_with_format(&out_path, ImageFormat::Png).with_context(|| {
+        format!(
+            "写入预模糊背景失败: {} -> {}",
+            src.display(),
+            out_path.display()
+        )
+    })?;
+
+    if verbose {
+        println!(
+            "背景预处理完成: {} (blur={}) -> {}",
+            src.display(),
+            site.background_blur_px,
+            out_path.display()
+        );
+    }
+    site.background_image = out_rel.to_string();
+    site.background_blur_px = 0;
+    Ok(site)
 }
 
 /// 校验 `public/index.html` 与 `public/posts/<id>/index.html` 与非草稿文章一致且内容像 HTML。
@@ -223,17 +284,23 @@ fn copy_post_resources(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 将 `themes/` 下文件复制到 `public/` 根目录（与首页、`posts/` 并列）。
-fn copy_theme_to_public() -> Result<()> {
-    let src = Path::new("themes");
+/// 将 `themes/<theme_id>/` 下文件复制到 `public/` 根目录（与首页、`posts/` 并列）。
+fn copy_theme_to_public(site: &SiteConfig) -> Result<()> {
+    let theme_id = site.theme.trim();
+    let theme_id = if theme_id.is_empty() {
+        "material"
+    } else {
+        theme_id
+    };
+    let src = Path::new("themes").join(theme_id);
     let dst = Path::new("public");
     if !src.is_dir() {
         bail!(
-            "主题目录不存在: {}（请将 themes/ 置于仓库根，或运行 typlog init）",
+            "主题目录不存在: {}（请在 config.toml 中设置 theme，或运行 typlog init）",
             src.display(),
         );
     }
-    copy_dir_all(src, dst)?;
+    copy_dir_all(&src, dst)?;
     Ok(())
 }
 
@@ -254,6 +321,39 @@ fn copy_dir_all(from: &Path, to: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+/// 给所有 `<img ...>` 标签补齐浏览器原生懒加载与异步解码（若已存在对应属性则不覆盖）。
+fn add_native_image_lazy_attrs(html: &str) -> String {
+    let mut out = String::with_capacity(html.len() + 256);
+    let mut i = 0usize;
+    while let Some(rel) = html[i..].find("<img") {
+        let start = i + rel;
+        out.push_str(&html[i..start]);
+        let Some(end_rel) = html[start..].find('>') else {
+            out.push_str(&html[start..]);
+            return out;
+        };
+        let end = start + end_rel;
+        let tag = &html[start..=end];
+        if tag.contains(" loading=") && tag.contains(" decoding=") {
+            out.push_str(tag);
+        } else {
+            let mut patched = tag[..tag.len() - 1].to_string();
+            if !tag.contains(" loading=") {
+                patched.push_str(r#" loading="lazy""#);
+            }
+            if !tag.contains(" decoding=") {
+                patched.push_str(r#" decoding="async""#);
+            }
+            patched.push('>');
+            out.push_str(&patched);
+        }
+        i = end + 1;
+    }
+    out.push_str(&html[i..]);
+    out
+}
+
 
 /// 列出 `posts/<id>/` 目录：必须同时存在 `index.typ` 与 `meta.toml`。
 fn collect_post_dirs(post_root: &Path) -> Result<Vec<PathBuf>> {
@@ -354,4 +454,13 @@ draft = false
         assert!(validate_generated_site_paths(&dir.join("posts"), &dir.join("public")).is_err());
         let _ = fs::remove_dir_all(&dir);
     }
+
+    #[test]
+    fn add_native_image_lazy_attrs_appends_missing_attrs() {
+        let html = r#"<p><img src="a.png"></p>"#;
+        let out = add_native_image_lazy_attrs(html);
+        assert!(out.contains(r#"loading="lazy""#));
+        assert!(out.contains(r#"decoding="async""#));
+    }
+
 }

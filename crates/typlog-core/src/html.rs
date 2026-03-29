@@ -10,6 +10,13 @@ const INDEX_HTML: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/temp
 const INDEX_POST_ITEM_HTML: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/index_post_item.html"));
 
+/// 首页：主题 CSS、Turbo（与 `themes/material/` 同步到 `public/` 根目录）。
+const THEME_CSS_HREF_INDEX: &str = "site.css";
+const THEME_TURBO_HREF_INDEX: &str = "turbo.min.js";
+/// 文章页相对 `public/posts/<id>/index.html` 的资源路径。
+const THEME_CSS_HREF_POST: &str = "../../site.css";
+const THEME_TURBO_HREF_POST: &str = "../../turbo.min.js";
+
 pub fn html_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -24,19 +31,36 @@ pub fn html_escape(s: &str) -> String {
     out
 }
 
-/// 首页引用的主题 CSS（`themes/` 经 generate 同步到 `public/` 根目录）。
-const THEME_CSS_HREF_INDEX: &str = "site.css";
-/// 文章页相对 `public/posts/<id>/index.html` 的主题 CSS 路径。
-const THEME_CSS_HREF_POST: &str = "../../site.css";
+/// 站点根下的页面或静态资源 URL（`rel` 无前导 `/`，如 `index.html`、`posts/foo/index.html`）。
+/// 用于 Turbo 导航与 `data-turbo-permanent` 背景层，避免相对路径随目录变化。
+pub(crate) fn site_href(site: &SiteConfig, rel: &str) -> String {
+    let rel = rel.trim().trim_start_matches('/');
+    let base = site.base_url.trim();
+    if base.is_empty() || base == "/" {
+        return if rel.is_empty() {
+            "/".to_string()
+        } else {
+            format!("/{}", rel)
+        };
+    }
+    let b = if base.ends_with('/') {
+        base.to_string()
+    } else {
+        format!("{}/", base)
+    };
+    format!("{b}{rel}")
+}
 
-/// `path_prefix`：从当前 HTML 到站点根的相对路径前缀；首页为 `""`，文章页为 `"../../"`。
-fn resolve_background_image_url(raw: &str, path_prefix: &str) -> String {
+/// 背景图等站点根资源：支持 `https://...`，否则与 [`site_href`] 相同。
+fn site_root_asset_url(site: &SiteConfig, raw: &str) -> String {
     let s = raw.trim();
+    if s.is_empty() {
+        return String::new();
+    }
     if s.starts_with("http://") || s.starts_with("https://") {
         return s.to_string();
     }
-    let path = s.trim_start_matches('/');
-    format!("{path_prefix}{path}")
+    site_href(site, s)
 }
 
 fn css_url_value(url: &str) -> String {
@@ -44,44 +68,72 @@ fn css_url_value(url: &str) -> String {
     format!("url(\"{escaped}\")")
 }
 
-/// 根据 `config.toml` 注入全站背景图 / 透明度 / 模糊（`body::before` 固定层）。
-pub(crate) fn background_style_for_site(site: &SiteConfig, path_prefix: &str) -> String {
+/// 将 `config.toml` 的 `glass_panel_opacity` 写成 `:root` 变量，覆盖主题 `site.css` 中的默认值。
+pub(crate) fn glass_panel_css_vars(site: &SiteConfig) -> String {
+    let base = site.glass_panel_opacity.clamp(0.35, 1.0);
+    let mid = (base - 0.04).max(0.35);
+    let bottom = (base - 0.02).max(0.35);
+    format!(
+        r#"<style id="typlog-glass-vars">
+:root {{
+  --glass-body-a: {a:.4};
+  --glass-body-a-mid: {mid:.4};
+  --glass-body-a-bottom: {bottom:.4};
+}}
+</style>
+"#,
+        a = base,
+        mid = mid,
+        bottom = bottom,
+    )
+}
+
+/// 根据 `config.toml` 注入全站背景图 / 透明度 / 模糊（`#typlog-bg` 固定层，与 site.css 配套）。
+pub(crate) fn background_style_for_site(site: &SiteConfig) -> String {
     let img = site.background_image.trim();
     if img.is_empty() {
         return String::new();
     }
-    let url = resolve_background_image_url(img, path_prefix);
+    let url = site_root_asset_url(site, img);
     let opacity = site.background_opacity.clamp(0.0, 1.0);
     let blur = site.background_blur_px;
     let url_css = css_url_value(&url);
+    let filter_block = if blur > 0 {
+        format!(
+            "  filter: blur({blur}px);\n  transform: translate3d(0, 0, 0) scale(1.06);\n"
+        )
+    } else {
+        "  transform: translate3d(0, 0, 0);\n".to_string()
+    };
+    let reduced_motion_block = if blur > 0 {
+        r#"@media (prefers-reduced-motion: reduce) {
+  #typlog-bg { filter: none !important; }
+}
+"#
+    } else {
+        ""
+    };
     format!(
         r#"<style id="typlog-site-bg">
-/* 盖过 site.css 的 `background:` 简写；body 背景透明后，`::before` 的 z-index:-1 才露在正文之下 */
 html {{ background: transparent; }}
 body.typlog-material {{ background: transparent !important; }}
-body.typlog-material::before {{
-  content: "";
-  display: block;
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
+#typlog-bg {{
   background-image: {url_css};
   background-size: cover;
   background-position: center;
   opacity: {opacity};
-  filter: blur({blur}px);
-  transform: scale(1.06);
+{filter_block}
 }}
-</style>
+{reduced_motion_block}</style>
 "#,
         url_css = url_css,
         opacity = opacity,
-        blur = blur,
+        filter_block = filter_block,
+        reduced_motion_block = reduced_motion_block,
     )
 }
 
-fn render_index_post_items(posts: &[PostMeta]) -> String {
+fn render_index_post_items(site: &SiteConfig, posts: &[PostMeta]) -> String {
     let mut out = String::new();
     for p in posts {
         let date_html = match p.date {
@@ -91,7 +143,12 @@ fn render_index_post_items(posts: &[PostMeta]) -> String {
             }
             None => String::new(),
         };
+        let post_href = html_escape(&site_href(
+            site,
+            &format!("posts/{}/index.html", p.id),
+        ));
         let row = INDEX_POST_ITEM_HTML
+            .replace("{{typlog_post_href}}", &post_href)
             .replace("{{typlog_post_id}}", &html_escape(&p.id))
             .replace("{{typlog_post_title}}", &html_escape(&p.title))
             .replace("{{typlog_post_date}}", &date_html);
@@ -113,16 +170,21 @@ fn hero_html(site: &SiteConfig) -> String {
 
 fn render_index_html(site: &SiteConfig, posts: &[PostMeta]) -> String {
     let css_href = html_escape(THEME_CSS_HREF_INDEX);
+    let turbo_href = html_escape(THEME_TURBO_HREF_INDEX);
+    let home_href = html_escape(&site_href(site, "index.html"));
     let title = html_escape(site.title.as_str());
     let lang = html_escape(site.language.as_str());
-    let post_items = render_index_post_items(posts);
+    let post_items = render_index_post_items(site, posts);
     INDEX_HTML
         .replace("{{typlog_lang}}", &lang)
         .replace("{{typlog_title}}", &title)
         .replace("{{typlog_css_href}}", &css_href)
+        .replace("{{typlog_turbo_script}}", &turbo_href)
+        .replace("{{typlog_home_href}}", &home_href)
+        .replace("{{typlog_glass_vars}}", &glass_panel_css_vars(site))
         .replace(
             "{{typlog_background_style}}",
-            &background_style_for_site(site, ""),
+            &background_style_for_site(site),
         )
         .replace("{{typlog_hero}}", &hero_html(site))
         .replace("{{typlog_post_items}}", &post_items)
@@ -142,7 +204,8 @@ pub fn write_index_html(out: &Path, site: &SiteConfig, posts: &[PostMeta]) -> Re
 /// 在 Typst 生成的文章 HTML 上注入 Material 顶栏、文首 meta 与主题样式，并把正文包进 `.material-typst`。
 pub fn inject_theme_post_html(html: &str, site: &SiteConfig, meta: &PostMeta) -> String {
     let css_href = THEME_CSS_HREF_POST;
-    let home = "../../index.html";
+    let turbo_href = THEME_TURBO_HREF_POST;
+    let home = html_escape(&site_href(site, "index.html"));
     let site_title = html_escape(site.title.as_str());
     let post_title = html_escape(meta.title.as_str());
     let date_line = match meta.date {
@@ -161,12 +224,24 @@ pub fn inject_theme_post_html(html: &str, site: &SiteConfig, meta: &PostMeta) ->
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{css_href}">
+    <script src="{turbo_href}" defer></script>
 "#
     );
-    let bg = background_style_for_site(site, "../../");
+    let bg = background_style_for_site(site);
+    let glass = glass_panel_css_vars(site);
     let mut inject = String::new();
     if !s.contains(css_href) {
         inject.push_str(&head_snippet);
+    } else {
+        if !s.contains("turbo.min.js") {
+            inject.push_str(&format!(
+                r#"    <script src="{turbo_href}" defer></script>
+"#
+            ));
+        }
+    }
+    if !s.contains("typlog-glass-vars") {
+        inject.push_str(&glass);
     }
     if !bg.is_empty() && !s.contains("typlog-site-bg") {
         inject.push_str(&bg);
@@ -195,11 +270,14 @@ pub fn inject_theme_post_html(html: &str, site: &SiteConfig, meta: &PostMeta) ->
     let inner = s[inner_start..body_end].trim();
 
     let mut hero = String::new();
+    hero.push_str(
+        "<div id=\"typlog-bg\" data-turbo-permanent aria-hidden=\"true\"></div>\n",
+    );
     hero.push_str("<header class=\"material-appbar\"><div class=\"material-appbar-inner\"><a class=\"material-appbar-brand\" href=\"");
-    hero.push_str(home);
+    hero.push_str(&home);
     hero.push_str("\">");
     hero.push_str(&site_title);
-    hero.push_str("</a></div></header>\n<main class=\"material-post-main\">\n<section class=\"material-article-hero\">\n<h1 class=\"material-article-title\">");
+    hero.push_str("</a></div></header>\n<main id=\"typlog-main\" class=\"material-post-main\">\n<section class=\"material-article-hero\">\n<h1 class=\"material-article-title\">");
     hero.push_str(&post_title);
     hero.push_str("</h1>\n");
     hero.push_str(&date_line);
@@ -220,7 +298,7 @@ pub fn inject_theme_post_html(html: &str, site: &SiteConfig, meta: &PostMeta) ->
 
 #[cfg(test)]
 mod tests {
-    use super::{html_escape, inject_theme_post_html};
+    use super::{html_escape, inject_theme_post_html, site_href};
     use crate::config::SiteConfig;
     use crate::meta::PostMeta;
     use chrono::NaiveDate;
@@ -229,6 +307,16 @@ mod tests {
     fn html_escape_should_escape_special_chars() {
         assert_eq!(html_escape("&<>"), "&amp;&lt;&gt;");
         assert_eq!(html_escape("\""), "&quot;");
+    }
+
+    #[test]
+    fn site_href_root() {
+        let site = SiteConfig {
+            base_url: "/".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(site_href(&site, "index.html"), "/index.html");
+        assert_eq!(site_href(&site, "posts/a/index.html"), "/posts/a/index.html");
     }
 
     #[test]
@@ -250,20 +338,49 @@ mod tests {
         assert!(out.contains("material-typst"));
         assert!(out.contains("<p>Hi</p>"));
         assert!(out.contains("site.css"));
+        assert!(out.contains("typlog-bg"));
+        assert!(out.contains("turbo.min.js"));
+        assert!(out.contains("href=\"/index.html\""));
+        assert!(out.contains("typlog-glass-vars"));
     }
 
     #[test]
-    fn background_style_resolves_post_relative_path() {
+    fn glass_panel_css_vars_follows_config() {
+        let site = SiteConfig {
+            glass_panel_opacity: 0.9,
+            ..Default::default()
+        };
+        let s = super::glass_panel_css_vars(&site);
+        assert!(s.contains("typlog-glass-vars"));
+        assert!(s.contains("--glass-body-a: 0.9000"));
+    }
+
+    #[test]
+    fn background_style_uses_site_root_url() {
         let site = SiteConfig {
             background_image: "bg.jpg".into(),
             background_opacity: 0.7,
             background_blur_px: 8,
+            base_url: "/".to_string(),
             ..Default::default()
         };
-        let s = super::background_style_for_site(&site, "../../");
+        let s = super::background_style_for_site(&site);
         assert!(s.contains("typlog-site-bg"));
-        assert!(s.contains("../../bg.jpg"));
+        assert!(s.contains("url(\"/bg.jpg\")"));
         assert!(s.contains("opacity: 0.7"));
         assert!(s.contains("blur(8px)"));
+    }
+
+    #[test]
+    fn background_style_omits_filter_when_blur_zero() {
+        let site = SiteConfig {
+            background_image: "x.webp".into(),
+            background_blur_px: 0,
+            base_url: "/".to_string(),
+            ..Default::default()
+        };
+        let s = super::background_style_for_site(&site);
+        assert!(!s.contains("filter:"));
+        assert!(!s.contains("blur("));
     }
 }

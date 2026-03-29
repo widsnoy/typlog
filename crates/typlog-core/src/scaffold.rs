@@ -21,16 +21,12 @@ pub const DEFAULT_POST_TYP_TEMPLATE: &str = r#"#set text(
 #set par(justify: true)
 #set document(title: sys.inputs.at("title", default: ""))
 
-// HTML 导出默认忽略公式；以下规则在网页中以内联 SVG 显示公式（PDF 等分页目标仍为默认数学排版）。
-#show math.equation: it => context {
-  if target() == "html" {
-    html.frame(it)
-  } else {
-    it
-  }
+#show math.equation.where(block: false): it => context {
+    html.elem("span", attrs: (role: "math"), html.frame(it))
 }
-
-在这里开始写正文。
+#show math.equation.where(block: true): it => context {
+    html.elem("figure", attrs: (role: "math"), html.frame(it))
+}
 "#;
 
 /// 替换 `{date}`、`{title}`（仅用于新建时的 `templates/meta.toml`）。

@@ -1,0 +1,430 @@
+/* NexT-inspired clean single-column layout */
+:root {
+  --md-primary: #3f51b5;
+  --md-primary-dark: #303f9f;
+  --md-accent: #ff4081;
+  --md-text: #212121;
+  --md-text-secondary: #757575;
+  --md-divider: #e0e0e0;
+  --md-bg: #f5f5f5;
+  --md-surface: #fff;
+  --md-shadow-1: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04);
+  --md-shadow-2: 0 4px 5px rgba(0, 0, 0, 0.14), 0 1px 10px rgba(0, 0, 0, 0.12);
+  --md-content-width: min(960px, calc(100vw - 20px));
+  /* 仿终端亚克力：无 backdrop-filter。下列值可由 generate 注入的 #typlog-glass-vars（来自 config.toml glass_panel_opacity）覆盖 */
+  --glass-body-a: 0.78;
+  --glass-body-a-mid: 0.74;
+  --glass-body-a-bottom: 0.76;
+  --glass-border-soft: rgba(0, 0, 0, 0.06);
+  /* 单层外阴影 + 一条上沿高光，避免多层 box-shadow 在滚动时反复重绘 */
+  --glass-shadow-outer: 0 4px 24px rgba(0, 0, 0, 0.09);
+  --glass-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  overflow-x: clip;
+  /* 减少滚动链传到父视口时的合成开销 */
+  overscroll-behavior-y: contain;
+}
+
+body.typlog-material {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--md-text);
+  background: var(--md-bg);
+  line-height: 1.6;
+  overscroll-behavior-y: contain;
+}
+
+/* 全站背景层：具体图与模糊由 `typlog-site-bg` 内联样式注入（见 html.rs） */
+#typlog-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  contain: strict;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+/* —— App bar —— */
+.material-appbar {
+  background: var(--md-primary);
+  color: #fff;
+  box-shadow: var(--md-shadow-2);
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  contain: layout style;
+  transform: translateZ(0);
+}
+
+.material-appbar-inner {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 20px 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.material-appbar-brand {
+  color: #fff;
+  text-decoration: none;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.material-appbar-brand:hover {
+  opacity: 0.92;
+}
+
+/* —— Index content column (single card like NexT Gemini) —— */
+.material-index-wrap {
+  width: 100%;
+  max-width: var(--md-content-width);
+  margin: 20px auto 48px;
+  padding: 0;
+  position: relative;
+  isolation: isolate;
+  transform: translateZ(0);
+  border-radius: 8px;
+  overflow: clip;
+  border: 1px solid var(--glass-border-soft);
+  box-shadow: var(--glass-shadow-outer), var(--glass-inset-top);
+}
+
+.material-index-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0) 26%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, var(--glass-body-a)) 0%,
+      rgba(248, 249, 253, var(--glass-body-a-mid)) 55%,
+      rgba(244, 245, 250, var(--glass-body-a-bottom)) 100%
+    );
+  pointer-events: none;
+}
+
+.material-index-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='3' height='3'%3E%3Ccircle cx='1.5' cy='1.5' r='.35' fill='%23000' fill-opacity='.06'/%3E%3C/svg%3E");
+  background-size: 3px 3px;
+}
+
+.material-index-wrap > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* —— Index hero / signature —— */
+.material-index-hero {
+  text-align: center;
+  padding: 28px 24px 12px;
+}
+
+.material-index-signature {
+  display: block;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  background: none;
+  box-shadow: none;
+  font-family: "STKaiti", "KaiTi", "Kaiti SC", "DFKai-SB", "Noto Serif SC", serif;
+  font-size: 2rem;
+  font-weight: 600;
+  color: #5d4db2;
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 8px rgba(63, 81, 181, 0.2);
+}
+
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .material-index-signature {
+    background: linear-gradient(120deg, #5c6bc0 0%, #7e57c2 45%, #ec407a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+
+/* —— Index post list —— */
+.material-post-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.material-post-card {
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  border-bottom: 1px solid var(--md-divider);
+}
+
+.material-post-card:last-child {
+  border-bottom: none;
+}
+
+.material-post-card:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+@media (hover: hover) {
+  .material-post-card {
+    transition: background 0.2s ease;
+  }
+}
+
+.material-post-card-inner {
+  display: block;
+  padding: 14px 32px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.material-post-card-title {
+  margin: 0 0 4px;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  color: var(--md-primary-dark);
+}
+
+.material-post-card:hover .material-post-card-title {
+  color: var(--md-accent);
+}
+
+.material-post-card-meta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--md-text-secondary);
+}
+
+.material-post-card-meta time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— Post page (single content column) —— */
+.material-post-main {
+  width: 100%;
+  max-width: var(--md-content-width);
+  margin: 20px auto 48px;
+  padding: 0;
+  position: relative;
+  isolation: isolate;
+  transform: translateZ(0);
+  border-radius: 8px;
+  overflow: clip;
+  border: 1px solid var(--glass-border-soft);
+  box-shadow: var(--glass-shadow-outer), var(--glass-inset-top);
+}
+
+.material-post-main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0) 26%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, var(--glass-body-a)) 0%,
+      rgba(248, 249, 253, var(--glass-body-a-mid)) 55%,
+      rgba(244, 245, 250, var(--glass-body-a-bottom)) 100%
+    );
+  pointer-events: none;
+}
+
+.material-post-main::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='3' height='3'%3E%3Ccircle cx='1.5' cy='1.5' r='.35' fill='%23000' fill-opacity='.06'/%3E%3C/svg%3E");
+  background-size: 3px 3px;
+}
+
+.material-post-main > * {
+  position: relative;
+  z-index: 1;
+}
+
+.material-article-hero {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 32px 40px 20px;
+  border-bottom: 1px solid var(--md-divider);
+}
+
+.material-article-title {
+  margin: 0 0 8px;
+  font-size: 1.625rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--md-text);
+}
+
+.material-article-date {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--md-text-secondary);
+}
+
+.material-article-date time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Typst HTML body：按块级 content-visibility（比整坨 .material-typst 更易跳过视口外段落） */
+.material-typst {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 28px 40px 40px;
+  contain: layout paint;
+}
+
+.material-typst > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
+}
+
+.material-typst p {
+  margin: 0 0 1em;
+}
+
+.material-typst p:last-child {
+  margin-bottom: 0;
+}
+
+.material-typst h1,
+.material-typst h2,
+.material-typst h3 {
+  font-weight: 400;
+  margin: 1.25em 0 0.5em;
+}
+
+.material-typst pre,
+.material-typst code {
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.9em;
+}
+
+.material-typst pre {
+  overflow-x: auto;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-radius: 2px;
+  border: 1px solid var(--md-divider);
+  contain: paint;
+}
+
+.material-typst img {
+  max-width: 100%;
+  height: auto;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
+}
+
+.material-typst figure[role="math"] {
+  display: block;
+  overflow-x: auto;
+  contain: paint;
+}
+
+.material-typst [role="math"] svg.typst-frame {
+  pointer-events: none;
+}
+
+.material-typst a {
+  color: var(--md-primary);
+}
+
+.material-typst a:hover {
+  color: var(--md-accent);
+}
+
+/* Markdown 风格引用块（对应 Typst 的 `>` / #quote(block: true) → <blockquote>） */
+.material-typst blockquote {
+  margin: 0 0 1em;
+  padding: 0 0 0 1em;
+  border-left: 4px solid #d0d7de;
+  color: #57606a;
+  background: none;
+}
+
+.material-typst blockquote p {
+  margin: 0 0 0.75em;
+}
+
+.material-typst blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* Typst HTML：行内公式 SVG（导出常把 math 变成独立节点；配合 preamble 中 box + 下列规则） */
+.material-typst svg {
+  shape-rendering: geometricPrecision;
+}
+
+.material-typst svg.typst-frame {
+  display: inline-block;
+  vertical-align: -0.22em;
+  max-width: 100%;
+}
+
+.material-typst .typst-math-display {
+  display: block;
+  margin: 0.9em 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.material-typst .typst-math-display svg.typst-frame {
+  display: block;
+  margin: 0 auto;
+  vertical-align: baseline;
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .material-post-card {
+    transition: none !important;
+  }
+}

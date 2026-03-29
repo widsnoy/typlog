@@ -13,7 +13,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// 在目标目录创建 posts/、themes/、templates/ 等（默认当前目录）
+    /// 在目标目录创建 posts/、themes/material/、templates/ 等（默认当前目录）
     Init {
         /// 目标目录
         #[arg(default_value = ".")]
