@@ -25,7 +25,7 @@ pub const DEFAULT_POST_TYP_TEMPLATE: &str = r#"#set text(
     html.elem("span", attrs: (role: "math"), html.frame(it))
 }
 #show math.equation.where(block: true): it => context {
-    html.elem("figure", attrs: (role: "math"), html.frame(it))
+    html.elem("figure", attrs: (role: "math", class: "typst-math-display"), html.frame(it))
 }
 "#;
 

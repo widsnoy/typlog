@@ -405,21 +405,24 @@ body.typlog-material {
 
 .material-typst svg.typst-frame {
   display: inline-block;
-  vertical-align: -0.22em;
+  /* Align inline math baseline with CJK body text. */
+  vertical-align: 0.1em;
   max-width: 100%;
 }
 
+.material-typst figure[role="math"],
 .material-typst .typst-math-display {
   display: block;
   margin: 0.9em 0;
   text-align: center;
   overflow-x: auto;
+  contain: paint;
 }
 
+.material-typst figure[role="math"] svg.typst-frame,
 .material-typst .typst-math-display svg.typst-frame {
   display: block;
   margin: 0 auto;
-  vertical-align: baseline;
   max-width: 100%;
 }
 
