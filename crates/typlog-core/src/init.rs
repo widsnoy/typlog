@@ -14,7 +14,7 @@ const DEFAULT_THEME_CSS: &str = include_str!(concat!(
 
 pub fn init_workspace(dir: &Path) -> Result<()> {
     fs::create_dir_all(dir).with_context(|| format!("无法创建目录: {}", dir.display()))?;
-    for child in ["posts", "templates", "public/posts", "themes"] {
+    for child in ["posts", "templates", "themes"] {
         let target = dir.join(child);
         fs::create_dir_all(&target)
             .with_context(|| format!("无法创建目录: {}", target.display()))?;

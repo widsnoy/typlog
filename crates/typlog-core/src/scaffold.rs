@@ -13,11 +13,7 @@ draft = false
 
 /// 默认 `templates/post.typ` 内容；生成到文章目录时写入为 `index.typ`。
 /// 自包含版式（纸张、边距、正文字体与语言），不依赖 `#import` 其它模板文件。
-pub const DEFAULT_POST_TYP_TEMPLATE: &str = r#"#set page(
-  paper: "a4",
-  margin: (x: 2.5cm, y: 2.5cm),
-)
-#set text(
+pub const DEFAULT_POST_TYP_TEMPLATE: &str = r#"#set text(
   font: "New Computer Modern",
   lang: "zh",
   size: 11pt,
@@ -26,7 +22,7 @@ pub const DEFAULT_POST_TYP_TEMPLATE: &str = r#"#set page(
 #set document(title: sys.inputs.at("title", default: ""))
 
 // HTML 导出默认忽略公式；以下规则在网页中以内联 SVG 显示公式（PDF 等分页目标仍为默认数学排版）。
-#show math.equation: it => {
+#show math.equation: it => context {
   if target() == "html" {
     html.frame(it)
   } else {
